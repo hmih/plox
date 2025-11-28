@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "X.com Hello World",
-  "description": "Shows a Hello World popup when visiting x.com.",
-  "version": "0.1.0",
+  "name": "X.com Account Flags",
+  "description": "All we're missing is greentext",
+  "version": "0.2.0",
   "content_scripts": [
     {
       "matches": [
