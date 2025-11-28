@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "X.com Hello World",
+  "description": "Shows a Hello World popup when visiting x.com.",
+  "version": "0.1.0",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/*",
+        "https://www.x.com/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "styles.css"
+      ],
+      "matches": [
+        "https://x.com/*",
+        "https://www.x.com/*"
+      ]
+    }
+  ]
+}
+
