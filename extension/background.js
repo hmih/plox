@@ -1,148 +1,163 @@
-const PROFILE_CACHE = new Map(); // In-memory cache for current session (Promises & Results)
-const USERNAME_LOCATIONS = new Map(); // Quick lookup for popup
-const CACHE_KEY = "xcom_loc_cache_v1";
-
-// Load persisted cache on startup
-chrome.storage.local.get([CACHE_KEY], (result) => {
-  if (result[CACHE_KEY]) {
-    Object.entries(result[CACHE_KEY]).forEach(([user, loc]) => {
-      USERNAME_LOCATIONS.set(user, loc);
-      PROFILE_CACHE.set(user, loc);
-    });
-  }
-});
-
-const saveToStorage = () => {
-  // Debounce saving to storage to avoid hitting write limits
-  chrome.storage.local.set({ 
-    [CACHE_KEY]: Object.fromEntries(USERNAME_LOCATIONS) 
-  });
+// ---------------------------------------------------------------------------
+// 1. CONSTANTS & MAPPINGS
+// ---------------------------------------------------------------------------
+const REGION_FLAGS = {
+  "united states": "🇺🇸",
+  usa: "🇺🇸",
+  uk: "🇬🇧",
+  "united kingdom": "🇬🇧",
+  canada: "🇨🇦",
+  germany: "🇩🇪",
+  france: "🇫🇷",
+  australia: "🇦🇺",
+  japan: "🇯🇵",
+  brazil: "🇧🇷",
+  india: "🇮🇳",
+  china: "🇨🇳",
+  europe: "🇪🇺",
+  asia: "🌏",
+  africa: "🌍",
+  global: "🌐",
 };
 
-const normalizeLocation = (raw) => raw?.trim().toLowerCase() ?? "";
+// ---------------------------------------------------------------------------
+// 2. PARSING LOGIC
+// ---------------------------------------------------------------------------
 
-// CRITICAL FIX: Service Workers cannot use DOMParser. 
-// We must use Regex to parse the text response.
+/**
+ * Parses the raw text content to find a username immediately followed by the '·' symbol.
+ * * Logic:
+ * On X.com, the header is strictly: [Name] [Verified] [@handle] [·] [Time]
+ * We look for the pattern: @handle followed by whitespace and the dot.
+ * * Regex Explanation:
+ * @             -> Literal @
+ * ([a-zA-Z0-9_]+)-> Capture the handle (alphanumeric + underscore)
+ * \s* -> Allow 0 or more whitespace characters
+ * [·\u00b7]     -> Match the interpunct dot (literal or unicode)
+ */
+const extractHandleFromText = (text) => {
+  const regex = /(@[a-zA-Z0-9_]{1,15})\s*[·\u00b7]/;
+  const match = text.match(regex);
+
+  if (match && match[1]) {
+    // Return the username without the '@'
+    return match[1].substring(1);
+  }
+  return null;
+};
+
 const parseLocationFromHtml = (html) => {
   try {
-    // 1. Sanitize simple whitespace
-    const text = html.replace(/\s+/g, " ");
+    // 1. Data-TestID Method (Most reliable for server-rendered content)
+    const uiMatch = html.match(/data-testid="UserLocation"[^>]*>([^<]+)</);
+    if (uiMatch && uiMatch[1]) return uiMatch[1].trim();
 
-    // 2. Regex to find the pattern seen in X.com's "About" modal
-    // Pattern: "Account based in" -> [Tags/Whitespace] -> [Target Location Text] -> [Closing Tag]
-    // This looks for: >Account based in< ...next span...>Location<
-    const regex = />\s*Account based in\s*<.*?\/span>.*?<span[^>]*>(.*?)<\/span>/i;
-    
-    const match = text.match(regex);
-    
-    if (match && match[1]) {
-      // Decode HTML entities if necessary (basic ones)
-      return match[1]
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .trim();
-    }
+    // 2. Schema.org JSON Method (Hidden in script tags)
+    // This is often how data is passed in React hydration
+    const jsonMatch = html.match(
+      /"contentLocation":{"@type":"Place","name":"(.*?)"}/,
+    );
+    if (jsonMatch && jsonMatch[1]) return jsonMatch[1].trim();
+
     return null;
   } catch (e) {
-    console.error("Regex Parse Error", e);
     return null;
   }
 };
 
-const fetchLocationForUser = async (username) => {
-  try {
-    // Add a random delay (jitter) to background requests too, 
-    // just in case they correlate scrolling speed with request speed.
-    await new Promise(r => setTimeout(r, Math.random() * 500));
+const getFlagEmoji = (locationName) => {
+  if (!locationName) return "🏳️";
+  const lower = locationName.toLowerCase();
 
-    const response = await fetch(`https://x.com/${username}/about`, {
-      credentials: "include", // Required for auth
-      headers: {
-        // Headers are mostly managed by the browser, but we ensure we look like a navigation
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
-      }
+  // Region Match
+  for (const [key, emoji] of Object.entries(REGION_FLAGS)) {
+    if (lower.includes(key)) return emoji;
+  }
+
+  // ISO Code Match (e.g. "Vienna, AT")
+  const countryCodeMatch = locationName.match(/\b([A-Z]{2})\b/);
+  if (countryCodeMatch) {
+    const code = countryCodeMatch[1];
+    const offset = 127397;
+    return (
+      String.fromCodePoint(code.charCodeAt(0) + offset) +
+      String.fromCodePoint(code.charCodeAt(1) + offset)
+    );
+  }
+
+  return "🏳️";
+};
+
+// ---------------------------------------------------------------------------
+// 3. CORE INVESTIGATION LOGIC
+// ---------------------------------------------------------------------------
+
+// We use a simple variable to ensure we only log ONE user per session (as requested)
+let HAS_PROCESSED_USER = false;
+
+const performInvestigation = async (username) => {
+  if (HAS_PROCESSED_USER) return;
+  HAS_PROCESSED_USER = true; // Lock immediately
+
+  try {
+    // Stealth Delay: Wait 0.5s - 1.5s before firing the request
+    const delay = Math.floor(Math.random() * 1000) + 500;
+    await new Promise((r) => setTimeout(r, delay));
+
+    console.log(
+      `🕵️ Detected @${username} (verified via '·'). Fetching profile...`,
+    );
+
+    const response = await fetch(`https://x.com/${username}`, {
+      method: "GET",
+      credentials: "include",
+      headers: { Accept: "text/html" },
     });
 
     if (!response.ok) {
-      // If 429 (Rate Limit), we should probably cool down, but returning null for now is safe
-      return null;
+      console.log("❌ Fetch failed:", response.status);
+      return;
     }
 
     const html = await response.text();
-    return parseLocationFromHtml(html);
-  } catch (error) {
-    console.error(`Fetch error for ${username}:`, error);
-    return null;
+    const location = parseLocationFromHtml(html);
+    const flag = getFlagEmoji(location);
+
+    if (location) {
+      console.log(`✅ ${username} -> ${location} ${flag}`);
+    } else {
+      console.log(`⚠️ ${username} -> Location Hidden/Unknown`);
+    }
+  } catch (err) {
+    console.error("Investigation Error:", err);
   }
 };
 
+// ---------------------------------------------------------------------------
+// 4. MESSAGE LISTENER
+// ---------------------------------------------------------------------------
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  
-  // -------------------------------------------------------------------------
-  // 1. ERROR LOGGING (From Content Script)
-  // -------------------------------------------------------------------------
-  if (request.action === "logError") {
-    // This logs to the Service Worker Console (Inspect Views -> Service Worker)
-    // Completely invisible to the webpage.
-    console.group(`🚨 Content Script Error: ${request.context}`);
-    console.error(request.error);
-    if (request.stack) console.log(request.stack);
-    console.groupEnd();
-    return false; // No response needed
-  }
-
-  // -------------------------------------------------------------------------
-  // 2. LOCATION FETCHING
-  // -------------------------------------------------------------------------
-  if (request.action === "getLocation") {
-    const username = request.username.toLowerCase();
-
-    // Check Memory Cache / Persisted Cache
-    if (PROFILE_CACHE.has(username)) {
-      const cached = PROFILE_CACHE.get(username);
-      
-      // If it's a pending Promise (already fetching), chain onto it
-      if (cached instanceof Promise) {
-        cached.then((location) => {
-          sendResponse({ location });
-        });
-        return true; // Keep channel open
-      }
-      
-      // If it's a Result string
-      sendResponse({ location: cached });
-      return false;
+  if (request.action === "analyzePageText") {
+    // 1. If we already found someone, tell content script to sleep forever.
+    if (HAS_PROCESSED_USER) {
+      sendResponse({ stopLooking: true });
+      return;
     }
 
-    // Start new Fetch
-    const promise = fetchLocationForUser(username).then((location) => {
-      // Update caches
-      PROFILE_CACHE.set(username, location || null);
-      USERNAME_LOCATIONS.set(username, location || null);
-      
-      // Persist to local storage
-      if (location) saveToStorage();
-      
-      return location;
-    });
+    // 2. Parse the text in the background
+    const username = extractHandleFromText(request.textContent);
 
-    PROFILE_CACHE.set(username, promise);
-    
-    promise.then((location) => {
-      sendResponse({ location });
-    });
+    if (username) {
+      // 3. Found a target! Start investigation.
+      performInvestigation(username);
 
-    return true; // Keep channel open for async response
+      // 4. Tell content script to stop scanning.
+      sendResponse({ stopLooking: true });
+    } else {
+      // 5. Nothing found yet, keep scanning.
+      sendResponse({ stopLooking: false });
+    }
   }
-
-  // -------------------------------------------------------------------------
-  // 3. POPUP DATA
-  // -------------------------------------------------------------------------
-  if (request.action === "getAllLocations") {
-    sendResponse({ locations: Object.fromEntries(USERNAME_LOCATIONS) });
-    return false;
-  }
-
-  return false;
+  return true; // Keep channel open
 });
