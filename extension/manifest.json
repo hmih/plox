@@ -3,6 +3,15 @@
   "name": "X.com Account Flags",
   "description": "All we're missing is greentext",
   "version": "0.2.0",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://x.com/*"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -11,14 +20,13 @@
       ],
       "js": [
         "content.js"
-      ]
+      ],
+      "world": "ISOLATED",
+      "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": [
-        "styles.css"
-      ],
       "matches": [
         "https://x.com/*",
         "https://www.x.com/*"
@@ -26,4 +34,3 @@
     }
   ]
 }
-
