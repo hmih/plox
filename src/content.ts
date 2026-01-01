@@ -8,7 +8,7 @@ const injectFlag = (
   const el = document.querySelector(
     `[data-plox-id="${elementId}"]`,
   ) as HTMLElement | null;
-  if (!el || el.dataset.ploxProcessed === "true") return;
+  if (!el || el.dataset["ploxProcessed"] === "true") return;
 
   const badge = document.createElement("span");
   badge.className = "plox-flag-badge";
@@ -16,7 +16,7 @@ const injectFlag = (
   badge.title = location || "Unknown Location";
 
   el.prepend(badge);
-  el.dataset.ploxProcessed = "true";
+  el.dataset["ploxProcessed"] = "true";
 };
 
 chrome.runtime.onMessage.addListener((message) => {
@@ -33,10 +33,10 @@ const scanForHandles = () => {
   handleElements.forEach((el) => {
     const htmlEl = el as HTMLElement;
     const text = htmlEl.innerText;
-    if (text.startsWith("@") && !htmlEl.dataset.ploxId) {
+    if (text.startsWith("@") && !htmlEl.dataset["ploxId"]) {
       const handle = text.substring(1);
       const elementId = `plox-${nextId++}`;
-      htmlEl.dataset.ploxId = elementId;
+      htmlEl.dataset["ploxId"] = elementId;
       chrome.runtime.sendMessage({
         action: "processHandle",
         handle,

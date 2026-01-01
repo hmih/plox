@@ -75,13 +75,13 @@ test.describe("Plox Refactoring Guard", () => {
           },
         },
         tabs: {
-          sendMessage: (tabId: number, msg: any) => {
+          sendMessage: (_tabId: number, msg: any) => {
             listeners.forEach((fn) => fn(msg));
           },
         },
       };
 
-      (window as any).chrome.tabs.query = (queryInfo: any, cb: any) =>
+      (window as any).chrome.tabs.query = (_queryInfo: any, cb: any) =>
         cb([{ id: 1 }]);
 
       window.addEventListener("message", (event) => {

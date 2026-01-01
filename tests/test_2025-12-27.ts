@@ -10,11 +10,11 @@ import * as utils from "./plox_test_helper";
 (globalThis as any).chrome = {
   runtime: {
     onMessage: {
-      addListener: () => {},
+      addListener: () => { },
     },
   },
   tabs: {
-    sendMessage: (tabId: number, message: any) => {
+    sendMessage: (_tabId: number, message: any) => {
       console.log(`[Test Mock] Message sent to content script:`, message);
       (globalThis as any).lastSentMessage = message;
     },

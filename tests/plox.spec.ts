@@ -6,7 +6,7 @@ import * as path from "path";
 const decodeQuotedPrintable = (text: string): string => {
   return text
     .replace(/=\r?\n/g, "")
-    .replace(/=([0-9A-F]{2})/g, (match, hex) =>
+    .replace(/=([0-9A-F]{2})/g, (_match, hex) =>
       String.fromCharCode(parseInt(hex, 16)),
     );
 };
@@ -17,6 +17,7 @@ const extractHtmlFromMhtml = (mhtmlContent: string): string | null => {
   if (!htmlPart) return null;
   const bodyEncoded =
     htmlPart.split("\r\n\r\n")[1] || htmlPart.split("\n\n")[1];
+  if (!bodyEncoded) return null;
   return decodeQuotedPrintable(bodyEncoded);
 };
 

@@ -59,11 +59,13 @@ export const getFlagEmoji = (locationName: string | null): string => {
   const countryCodeMatch = cleanName.match(/\b([A-Z]{2})\b/);
   if (countryCodeMatch) {
     const code = countryCodeMatch[1];
-    const offset = 127397;
-    return (
-      String.fromCodePoint(code.charCodeAt(0) + offset) +
-      String.fromCodePoint(code.charCodeAt(1) + offset)
-    );
+    if (code) {
+      const offset = 127397;
+      return (
+        String.fromCodePoint(code.charCodeAt(0) + offset) +
+        String.fromCodePoint(code.charCodeAt(1) + offset)
+      );
+    }
   }
 
   return "🏳️";
