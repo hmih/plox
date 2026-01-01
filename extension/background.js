@@ -18,7 +18,7 @@
     asia: "\u{1F30F}",
     africa: "\u{1F30D}",
     global: "\u{1F310}",
-    austria: "\u{1F1E6}\u{1F1F9}"
+    austria: "\u{1F1E6}\u{1F1F9}",
   };
   var parseLocationFromHtml = (html) => {
     if (!html) throw new Error("Input HTML is empty or null");
@@ -36,7 +36,7 @@
     const uiMatch = html.match(/data-testid="UserLocation"[^>]*>([^<]+)</);
     if (uiMatch && uiMatch[1]) return uiMatch[1].trim();
     const jsonMatch = html.match(
-      /"contentLocation":{"@type":"Place","name":"(.*?)"}/
+      /"contentLocation":{"@type":"Place","name":"(.*?)"}/,
     );
     if (jsonMatch && jsonMatch[1]) return jsonMatch[1].trim();
     return null;
@@ -52,12 +52,16 @@
     if (countryCodeMatch) {
       const code = countryCodeMatch[1];
       const offset = 127397;
-      return String.fromCodePoint(code.charCodeAt(0) + offset) + String.fromCodePoint(code.charCodeAt(1) + offset);
+      return (
+        String.fromCodePoint(code.charCodeAt(0) + offset) +
+        String.fromCodePoint(code.charCodeAt(1) + offset)
+      );
     }
     return "\u{1F3F3}\uFE0F";
   };
   var generateGaussianDelay = (min, max) => {
-    let u = 0, v = 0;
+    let u = 0,
+      v = 0;
     while (u === 0) u = Math.random();
     while (v === 0) v = Math.random();
     let z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
@@ -78,19 +82,21 @@
           action: "visualizeFlag",
           elementId,
           flag,
-          location
+          location,
         });
         return;
       }
     }
     if (pending.has(handle)) {
       console.debug(
-        `[Worker] @${handle} is already being investigated. Skipping redundant request.`
+        `[Worker] @${handle} is already being investigated. Skipping redundant request.`,
       );
       return;
     }
     pending.add(handle);
-    console.log(`\u{1F575}\uFE0F [Investigator] Starting fresh check for @${handle}`);
+    console.log(
+      `\u{1F575}\uFE0F [Investigator] Starting fresh check for @${handle}`,
+    );
     try {
       const delay = generateGaussianDelay(1e3, 3e3);
       if (typeof globalThis.TEST_ENV === "undefined") {
@@ -104,8 +110,11 @@
         headers: {
           Accept: "text/html",
           "Upgrade-Insecure-Requests": "1",
-          "User-Agent": typeof navigator !== "undefined" ? navigator.userAgent : "PloxBot/1.0"
-        }
+          "User-Agent":
+            typeof navigator !== "undefined"
+              ? navigator.userAgent
+              : "PloxBot/1.0",
+        },
       });
       if (!response.ok)
         throw new Error(`Fetch failed with status ${response.status}`);
@@ -113,7 +122,7 @@
       const location = parseLocationFromHtml(html);
       if (!location) {
         console.warn(
-          `[Worker] Could not parse location for @${handle}. Raw HTML Snippet: ${html.substring(0, 500)}`
+          `[Worker] Could not parse location for @${handle}. Raw HTML Snippet: ${html.substring(0, 500)}`,
         );
         throw new Error("Location extraction failed");
       }
@@ -124,7 +133,7 @@
         action: "visualizeFlag",
         elementId,
         flag,
-        location
+        location,
       });
     } catch (err) {
       console.error(`\u274C [Error] @${handle}:`, err.message);
@@ -132,9 +141,17 @@
       pending.delete(handle);
     }
   };
-  if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
+  if (
+    typeof chrome !== "undefined" &&
+    chrome.runtime &&
+    chrome.runtime.onMessage
+  ) {
     chrome.runtime.onMessage.addListener((request, sender) => {
-      if (request.action === "processHandle" && sender.tab && sender.tab.id !== void 0) {
+      if (
+        request.action === "processHandle" &&
+        sender.tab &&
+        sender.tab.id !== void 0
+      ) {
         performInvestigation(request.handle, sender.tab.id, request.elementId);
       }
       return true;

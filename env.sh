@@ -2,7 +2,7 @@
 
 # Get the absolute path of the directory where this script is located
 # This ensures it works regardless of where you call it from.
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 NODE_BIN="$SCRIPT_DIR/.node-env/bin"
 
 if [ -d "$NODE_BIN" ]; then
