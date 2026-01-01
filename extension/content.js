@@ -19,7 +19,7 @@
   });
   var scanForHandles = () => {
     const handleElements = document.querySelectorAll(
-      '[data-testid="User-Names"] span:last-child, div[dir="ltr"] > span:first-child'
+      '[data-testid="User-Names"] span:last-child, div[dir="ltr"] > span:first-child',
     );
     handleElements.forEach((el) => {
       const htmlEl = el;
@@ -28,7 +28,11 @@
         const handle = text.substring(1);
         const elementId = `plox-${nextId++}`;
         htmlEl.dataset.ploxId = elementId;
-        chrome.runtime.sendMessage({ action: "processHandle", handle, elementId });
+        chrome.runtime.sendMessage({
+          action: "processHandle",
+          handle,
+          elementId,
+        });
       }
     });
   };
