@@ -1,3 +1,11 @@
+# Automatic isolated environment activation
+NODE_BIN := $(CURDIR)/.node-env/bin
+export PATH := $(NODE_BIN):$(PATH)
+
+# Load configuration from .env if it exists
+-include .env
+export $(shell [ -f .env ] && sed 's/=.*//' .env)
+
 .PHONY: help env build test format clean dist
 
 help:

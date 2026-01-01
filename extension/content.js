@@ -3,7 +3,9 @@
   // src/content.ts
   var nextId = 1;
   var injectFlag = (elementId, flag, location) => {
-    const el = document.querySelector(`[data-plox-id="${elementId}"]`);
+    const el = document.querySelector(
+      `[data-plox-id="${elementId}"]`
+    );
     if (!el || el.dataset.ploxProcessed === "true") return;
     const badge = document.createElement("span");
     badge.className = "plox-flag-badge";
@@ -19,7 +21,7 @@
   });
   var scanForHandles = () => {
     const handleElements = document.querySelectorAll(
-      '[data-testid="User-Names"] span:last-child, div[dir="ltr"] > span:first-child',
+      '[data-testid="User-Names"] span:last-child, div[dir="ltr"] > span:first-child'
     );
     handleElements.forEach((el) => {
       const htmlEl = el;
@@ -31,7 +33,7 @@
         chrome.runtime.sendMessage({
           action: "processHandle",
           handle,
-          elementId,
+          elementId
         });
       }
     });

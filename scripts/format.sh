@@ -7,9 +7,9 @@ PROJECT_ROOT="$( dirname "$SCRIPT_DIR" )"
 
 cd "$PROJECT_ROOT"
 
-# Use the local environment if available
-if [ -f "./env.sh" ]; then
-    source ./env.sh > /dev/null
+# Ensure we are using the project's node environment if it exists
+if [ -d "./.node-env/bin" ]; then
+    export PATH="$(pwd)/.node-env/bin:$PATH"
 fi
 
 echo "🎨 Formatting project files..."
