@@ -6,7 +6,7 @@ export PATH := $(NODE_BIN):$(PATH)
 -include .env
 export $(shell [ -f .env ] && sed 's/=.*//' .env)
 
-.PHONY: help env build test format clean dist setup
+.PHONY: help env build test format check-format clean dist setup
 
 setup:
 	@chmod +x scripts/setup_env.sh
@@ -35,6 +35,9 @@ test:
 
 format:
 	./scripts/format.sh
+
+check-format:
+	./scripts/format.sh --check
 
 clean:
 	rm -rf extension/*.js
