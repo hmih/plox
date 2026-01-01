@@ -1,56 +1,44 @@
+"use strict";
 (() => {
-  let observer = null;
-  let isScanning = false;
-
-  // 1. The Snapshot Function
-  // Runs only when the browser is idle to stay invisible.
-  const snapshotAndSend = (deadline) => {
-    isScanning = false;
-
-    // If the browser is suddenly busy, bail out to avoid lag.
-    if (deadline.timeRemaining() < 1) return;
-
-    // We send innerText. It captures the visual flow (@handle · Time)
-    // without the overhead of serializing the full HTML DOM.
-    const pageText = document.body.innerText;
-
-    if (pageText.length < 500) return; // Wait for page load
-
-    try {
-      chrome.runtime.sendMessage(
-        { action: "analyzePageText", textContent: pageText },
-        (response) => {
-          // The background decides when to stop.
-          if (response && response.stopLooking) {
-            if (observer) {
-              observer.disconnect();
-              observer = null;
-            }
-          }
-        },
-      );
-    } catch (e) {
-      // Disconnect if the extension was updated/reloaded
-      if (observer) observer.disconnect();
-    }
+  // src/content.ts
+  var nextId = 1;
+  var injectFlag = (elementId, flag, location) => {
+    const el = document.querySelector(`[data-plox-id="${elementId}"]`);
+    if (!el || el.dataset.ploxProcessed === "true") return;
+    const badge = document.createElement("span");
+    badge.className = "plox-flag-badge";
+    badge.textContent = flag;
+    badge.title = location || "Unknown Location";
+    el.prepend(badge);
+    el.dataset.ploxProcessed = "true";
   };
-
-  // 2. Scheduler
-  const scheduleScan = () => {
-    if (isScanning) return;
-    isScanning = true;
-
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === "visualizeFlag") {
+      injectFlag(message.elementId, message.flag, message.location);
+    }
+  });
+  var scanForHandles = () => {
+    const handleElements = document.querySelectorAll(
+      '[data-testid="User-Names"] span:last-child, div[dir="ltr"] > span:first-child'
+    );
+    handleElements.forEach((el) => {
+      const htmlEl = el;
+      const text = htmlEl.innerText;
+      if (text.startsWith("@") && !htmlEl.dataset.ploxId) {
+        const handle = text.substring(1);
+        const elementId = `plox-${nextId++}`;
+        htmlEl.dataset.ploxId = elementId;
+        chrome.runtime.sendMessage({ action: "processHandle", handle, elementId });
+      }
+    });
+  };
+  var observer = new MutationObserver(() => {
     if ("requestIdleCallback" in window) {
-      // "Run this when the CPU is completely free"
-      window.requestIdleCallback(snapshotAndSend, { timeout: 2000 });
+      window.requestIdleCallback(scanForHandles, { timeout: 500 });
     } else {
-      // Fallback for older browsers (unlikely needed for Brave/Chrome)
-      setTimeout(() => snapshotAndSend({ timeRemaining: () => 10 }), 1000);
+      setTimeout(scanForHandles, 200);
     }
-  };
-
-  // 3. Observer
-  // Watch for dynamic content loading, but trigger lazily
-  observer = new MutationObserver(scheduleScan);
+  });
   observer.observe(document.body, { childList: true, subtree: true });
+  scanForHandles();
 })();

@@ -1,0 +1,27 @@
+.plox-flag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4px;
+  font-size: 1.1em;
+  vertical-align: middle;
+  cursor: help;
+  animation: plox-fade-in 0.3s ease-out;
+}
+
+@keyframes plox-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Ensure handles don't wrap strangely */
+[data-plox-processed="true"] {
+  white-space: nowrap !important;
+}

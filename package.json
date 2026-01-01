@@ -1,0 +1,28 @@
+{
+  "name": "agentic",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.js",
+    "test": "npx playwright test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/chrome": "^0.1.32",
+    "@types/jest": "^30.0.0",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^25.0.3",
+    "@types/node-fetch": "^2.6.13",
+    "esbuild": "^0.27.2",
+    "jsdom": "^27.4.0",
+    "node-fetch-commonjs": "^3.3.2",
+    "playwright": "^1.57.0",
+    "prettier": "^3.7.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

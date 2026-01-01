@@ -3,25 +3,16 @@
   "name": "X.com Account Flags",
   "description": "All we're missing is greentext",
   "version": "0.2.1",
-  "permissions": [
-    "storage"
-  ],
-  "host_permissions": [
-    "https://x.com/*",
-    "https://twitter.com/*"
-  ],
+  "permissions": ["storage"],
+  "host_permissions": ["https://x.com/*", "https://twitter.com/*"],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": [
-        "https://x.com/*",
-        "https://twitter.com/*"
-      ],
-      "js": [
-        "content.js"
-      ],
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "css": ["styles.css"],
+      "js": ["content.js"],
       "world": "ISOLATED",
       "run_at": "document_idle"
     }
