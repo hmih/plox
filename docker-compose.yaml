@@ -1,0 +1,16 @@
+services:
+  agent-sandbox:
+    image: python:3.11-slim
+    container_name: antigravity_sandbox
+    user: "1000:1000"
+    read_only: true
+    volumes:
+      - ./:/workspace:rw
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 1G
+    network_mode: none 
+    working_dir: /workspace
+    command: python agent_entrypoint.py
