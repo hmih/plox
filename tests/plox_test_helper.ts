@@ -44,26 +44,7 @@ export const extractHtmlFromMhtml = (mhtmlContent: string): string | null => {
 };
 
 /**
- * Parsing logic (from background.js)
- */
-export const parseLocationFromHtml = (html: string | null): string | null => {
-  if (!html) return null;
-  const needle = "Account based in";
-  const needleIndex = html.indexOf(needle);
-  if (needleIndex !== -1) {
-    const startSearchIndex = needleIndex + needle.length;
-    const snippet = html.substring(startSearchIndex, startSearchIndex + 300);
-    const extractionRegex = /^(?:<[^>]+>|\s)+([^<]+)/;
-    const match = snippet.match(extractionRegex);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-  }
-  return null;
-};
-
-/**
- * Flag mapping (from background.js)
+ * Flag mapping (from core.ts)
  */
 export const getFlagEmoji = (locationName: string | null): string => {
   if (!locationName) return "🏳️";

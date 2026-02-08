@@ -6,16 +6,19 @@
     const el = document.querySelector(
       `[data-plox-id="${elementId}"]`
     );
-    if (!el || el.dataset.ploxProcessed === "true") return;
+    if (!el || el.dataset["ploxProcessed"] === "true") return;
     const badge = document.createElement("span");
     badge.className = "plox-flag-badge";
     badge.textContent = flag;
     badge.title = location || "Unknown Location";
     el.prepend(badge);
-    el.dataset.ploxProcessed = "true";
+    el.dataset["ploxProcessed"] = "true";
   };
   chrome.runtime.onMessage.addListener((message) => {
     if (message.action === "visualizeFlag") {
+      console.log(
+        `[Plox] Flag for ${message.elementId}: ${message.flag} (${message.location})`
+      );
       injectFlag(message.elementId, message.flag, message.location);
     }
   });
@@ -26,10 +29,10 @@
     handleElements.forEach((el) => {
       const htmlEl = el;
       const text = htmlEl.innerText;
-      if (text.startsWith("@") && !htmlEl.dataset.ploxId) {
+      if (text.startsWith("@") && !htmlEl.dataset["ploxId"]) {
         const handle = text.substring(1);
         const elementId = `plox-${nextId++}`;
-        htmlEl.dataset.ploxId = elementId;
+        htmlEl.dataset["ploxId"] = elementId;
         chrome.runtime.sendMessage({
           action: "processHandle",
           handle,

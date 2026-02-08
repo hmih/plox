@@ -20,27 +20,6 @@
     global: "\u{1F310}",
     austria: "\u{1F1E6}\u{1F1F9}"
   };
-  var parseLocationFromHtml = (html) => {
-    if (!html) throw new Error("Input HTML is empty or null");
-    const needle = "Account based in";
-    const needleIndex = html.indexOf(needle);
-    if (needleIndex !== -1) {
-      const startSearchIndex = needleIndex + needle.length;
-      const snippet = html.substring(startSearchIndex, startSearchIndex + 300);
-      const extractionRegex = /^(?:<[^>]+>|\s)+([^<]+)/;
-      const match = snippet.match(extractionRegex);
-      if (match && match[1]) {
-        return match[1].trim();
-      }
-    }
-    const uiMatch = html.match(/data-testid="UserLocation"[^>]*>([^<]+)</);
-    if (uiMatch && uiMatch[1]) return uiMatch[1].trim();
-    const jsonMatch = html.match(
-      /"contentLocation":{"@type":"Place","name":"(.*?)"}/
-    );
-    if (jsonMatch && jsonMatch[1]) return jsonMatch[1].trim();
-    return null;
-  };
   var getFlagEmoji = (locationName) => {
     if (!locationName) return "\u{1F3F3}\uFE0F";
     const cleanName = locationName.trim();
@@ -51,83 +30,61 @@
     const countryCodeMatch = cleanName.match(/\b([A-Z]{2})\b/);
     if (countryCodeMatch) {
       const code = countryCodeMatch[1];
-      const offset = 127397;
-      return String.fromCodePoint(code.charCodeAt(0) + offset) + String.fromCodePoint(code.charCodeAt(1) + offset);
+      if (code) {
+        const offset = 127397;
+        return String.fromCodePoint(code.charCodeAt(0) + offset) + String.fromCodePoint(code.charCodeAt(1) + offset);
+      }
     }
     return "\u{1F3F3}\uFE0F";
   };
-  var generateGaussianDelay = (min, max) => {
-    let u = 0, v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
-    let z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-    const mean = (min + max) / 2;
-    const stdDev = (max - min) / 6;
-    return Math.max(min, Math.min(max, Math.round(z * stdDev + mean)));
-  };
 
   // src/background.ts
+  var PLOX_SERVER = true ? "https://plox.krepost.xy" : "https://plox.krepost.xy";
   var cache = /* @__PURE__ */ new Map();
   var pending = /* @__PURE__ */ new Set();
   var performInvestigation = async (handle, tabId, elementId) => {
     if (cache.has(handle)) {
       const cached = cache.get(handle);
       if (cached) {
-        const { location, flag } = cached;
+        console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
         chrome.tabs.sendMessage(tabId, {
           action: "visualizeFlag",
           elementId,
-          flag,
-          location
+          flag: cached.flag,
+          location: cached.location
         });
         return;
       }
     }
     if (pending.has(handle)) {
-      console.debug(
-        `[Worker] @${handle} is already being investigated. Skipping redundant request.`
-      );
+      console.debug(`[Plox] @${handle} already pending, skipping`);
       return;
     }
     pending.add(handle);
-    console.log(`\u{1F575}\uFE0F [Investigator] Starting fresh check for @${handle}`);
     try {
-      const delay = generateGaussianDelay(1e3, 3e3);
-      if (typeof globalThis.TEST_ENV === "undefined") {
-        await new Promise((r) => setTimeout(r, delay));
+      const url = `${PLOX_SERVER}/met?username=${encodeURIComponent(handle)}`;
+      console.log(`[Plox] Querying server for @${handle}`);
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Server returned ${response.status}`);
       }
-      const url = `https://x.com/${handle}/about`;
-      console.log(`[Worker] Fetching ${url}`);
-      const response = await fetch(url, {
-        method: "GET",
-        credentials: "include",
-        headers: {
-          Accept: "text/html",
-          "Upgrade-Insecure-Requests": "1",
-          "User-Agent": typeof navigator !== "undefined" ? navigator.userAgent : "PloxBot/1.0"
-        }
-      });
-      if (!response.ok)
-        throw new Error(`Fetch failed with status ${response.status}`);
-      const html = await response.text();
-      const location = parseLocationFromHtml(html);
-      if (!location) {
-        console.warn(
-          `[Worker] Could not parse location for @${handle}. Raw HTML Snippet: ${html.substring(0, 500)}`
-        );
-        throw new Error("Location extraction failed");
+      const data = await response.json();
+      console.log(`[Plox] Server response for @${handle}:`, data);
+      if (data.processed && data.location) {
+        const flag = getFlagEmoji(data.location);
+        cache.set(handle, { location: data.location, flag });
+        console.log(`[Plox] @${handle} -> ${data.location} ${flag}`);
+        chrome.tabs.sendMessage(tabId, {
+          action: "visualizeFlag",
+          elementId,
+          flag,
+          location: data.location
+        });
+      } else {
+        console.log(`[Plox] @${handle} registered but not yet processed`);
       }
-      const flag = getFlagEmoji(location);
-      cache.set(handle, { location, flag });
-      console.log(`\u2705 [Success] @${handle} -> ${location} ${flag}`);
-      chrome.tabs.sendMessage(tabId, {
-        action: "visualizeFlag",
-        elementId,
-        flag,
-        location
-      });
     } catch (err) {
-      console.error(`\u274C [Error] @${handle}:`, err.message);
+      console.error(`[Plox] Error for @${handle}:`, err.message);
     } finally {
       pending.delete(handle);
     }

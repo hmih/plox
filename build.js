@@ -18,6 +18,11 @@ async function build() {
       minify: false, // Keep readable for now
       target: ["chrome121"],
       format: "iife", // Standard for extension scripts
+      define: {
+        PLOX_SERVER_URL: JSON.stringify(
+          process.env.PLOX_SERVER_URL || "https://plox.krepost.xy",
+        ),
+      },
     });
 
     console.log("✅ Build complete! Files in extension/");

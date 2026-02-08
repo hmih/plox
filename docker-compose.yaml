@@ -1,12 +1,29 @@
 services:
-  agent-sandbox:
-    image: mcr.microsoft.com/devcontainers/python:3.12-bookworm
-    container_name: antigravity_sandbox
-    user: vscode
-    deploy:
-      resources:
-        limits:
-          cpus: '0.50'
-          memory: 1G
-    working_dir: /workspace
-    command: sleep infinity
+  plox-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: plox_server
+    ports:
+      - "5000:5000"
+    volumes:
+      - plox-data:/data
+    environment:
+      - PLOX_DB_PATH=/data/plox.db
+    restart: unless-stopped
+
+  plox-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: plox_worker
+    volumes:
+      - plox-data:/data
+    environment:
+      - PLOX_DB_PATH=/data/plox.db
+      - PLOX_POLL_INTERVAL=10
+    command: ["python", "worker.py"]
+    restart: unless-stopped
+
+volumes:
+  plox-data:

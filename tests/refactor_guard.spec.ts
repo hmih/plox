@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
-import { parseLocationFromHtml, getFlagEmoji } from "../src/core";
+import { getFlagEmoji } from "../src/core";
 
 test.describe("Plox Refactoring Guard", () => {
   let contentJs: string;
@@ -23,7 +23,7 @@ test.describe("Plox Refactoring Guard", () => {
     );
   });
 
-  test("Full flow: Main thread (scan) -> Worker (fetch/parse) -> Main thread (display)", async ({
+  test("Full flow: Main thread (scan) -> Worker (server query) -> Main thread (display)", async ({
     page,
   }) => {
     page.on("console", (msg) => console.log(`[PAGE CONSOLE] ${msg.text()}`));
@@ -47,19 +47,27 @@ test.describe("Plox Refactoring Guard", () => {
             </html>
         `);
 
-    await page.route("**/testuser1/about", async (route) => {
+    await page.route("**/met?username=testuser1", async (route) => {
       await route.fulfill({
         status: 200,
-        contentType: "text/html",
-        body: `<html><body><div>Account based in Germany</div></body></html>`,
+        contentType: "application/json",
+        body: JSON.stringify({
+          username: "testuser1",
+          processed: true,
+          location: "Germany",
+        }),
       });
     });
 
-    await page.route("**/testuser2/about", async (route) => {
+    await page.route("**/met?username=testuser2", async (route) => {
       await route.fulfill({
         status: 200,
-        contentType: "text/html",
-        body: `<html><body><div>Account based in United States</div></body></html>`,
+        contentType: "application/json",
+        body: JSON.stringify({
+          username: "testuser2",
+          processed: true,
+          location: "United States",
+        }),
       });
     });
 
@@ -95,16 +103,10 @@ test.describe("Plox Refactoring Guard", () => {
       });
     });
 
-    let modifiedBackgroundJs = backgroundJs
-      .replace(
-        /chrome\.runtime\.onMessage\.addListener\(/,
-        "window.backgroundMsgListener = (",
-      )
-      .replace(
-        /const delay = generateGaussianDelay\(.*?\);/g,
-        "const delay = 0;",
-      )
-      .replace(/var delay = generateGaussianDelay\(.*?\);/g, "var delay = 0;");
+    let modifiedBackgroundJs = backgroundJs.replace(
+      /chrome\.runtime\.onMessage\.addListener\(/,
+      "window.backgroundMsgListener = (",
+    );
 
     await page.addScriptTag({ content: modifiedBackgroundJs });
     await page.addScriptTag({ content: contentJs });
@@ -124,39 +126,20 @@ test.describe("Plox Refactoring Guard", () => {
     console.log("✅ Main thread fetching and display verified.");
   });
 
-  test("Worker thread parsing logic robustness", async () => {
+  test("getFlagEmoji mapping robustness", async () => {
     const testCases = [
-      {
-        html: "<div>Account based in Japan</div>",
-        expectedLoc: "Japan",
-        expectedFlag: "🇯🇵",
-      },
-      {
-        html: "<div>Account based in United Kingdom</div>",
-        expectedLoc: "United Kingdom",
-        expectedFlag: "🇬🇧",
-      },
-      {
-        html: '<div data-testid="UserLocation">Berlin, Germany</div>',
-        expectedLoc: "Berlin, Germany",
-        expectedFlag: "🇩🇪",
-      },
-      {
-        html: '{"contentLocation":{"@type":"Place","name":"Paris, France"}}',
-        expectedLoc: "Paris, France",
-        expectedFlag: "🇫🇷",
-      },
+      { location: "Japan", expectedFlag: "🇯🇵" },
+      { location: "United Kingdom", expectedFlag: "🇬🇧" },
+      { location: "Berlin, Germany", expectedFlag: "🇩🇪" },
+      { location: "Paris, France", expectedFlag: "🇫🇷" },
+      { location: null, expectedFlag: "🏳️" },
     ];
 
     testCases.forEach((tc) => {
-      const loc = parseLocationFromHtml(tc.html);
-      const flag = getFlagEmoji(loc);
-      expect(loc, `Failed for ${tc.html.substring(0, 20)}`).toContain(
-        tc.expectedLoc,
-      );
+      const flag = getFlagEmoji(tc.location);
       expect(flag).toBe(tc.expectedFlag);
     });
 
-    console.log("✅ Worker thread parsing logic verified.");
+    console.log("✅ getFlagEmoji mapping verified.");
   });
 });

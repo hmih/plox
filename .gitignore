@@ -3,3 +3,8 @@ node_modules/
 package-lock.json
 plox_extension.zip
 test-results/
+server/__pycache__/
+server/tests/__pycache__/
+*.pyc
+/data/
+.pytest_cache/

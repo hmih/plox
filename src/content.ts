@@ -21,6 +21,9 @@ const injectFlag = (
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.action === "visualizeFlag") {
+    console.log(
+      `[Plox] Flag for ${message.elementId}: ${message.flag} (${message.location})`,
+    );
     injectFlag(message.elementId, message.flag, message.location);
   }
 });

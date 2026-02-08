@@ -1,10 +1,15 @@
-import {
-  parseLocationFromHtml,
-  getFlagEmoji,
-  generateGaussianDelay,
-} from "./core";
+import { getFlagEmoji } from "./core";
 
-export const cache = new Map<string, { location: string; flag: string }>();
+declare const PLOX_SERVER_URL: string;
+const PLOX_SERVER =
+  typeof PLOX_SERVER_URL !== "undefined"
+    ? PLOX_SERVER_URL
+    : "https://plox.krepost.xy";
+
+export const cache = new Map<
+  string,
+  { location: string | null; flag: string }
+>();
 export const pending = new Set<string>();
 
 export const performInvestigation = async (
@@ -12,81 +17,60 @@ export const performInvestigation = async (
   tabId: number,
   elementId: string,
 ) => {
-  // 1. Check Cache
   if (cache.has(handle)) {
     const cached = cache.get(handle);
     if (cached) {
-      const { location, flag } = cached;
+      console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
       chrome.tabs.sendMessage(tabId, {
         action: "visualizeFlag",
         elementId,
-        flag,
-        location,
+        flag: cached.flag,
+        location: cached.location,
       });
       return;
     }
   }
 
-  // 2. Prevent Duplicate Concurrent Fetches
   if (pending.has(handle)) {
-    console.debug(
-      `[Worker] @${handle} is already being investigated. Skipping redundant request.`,
-    );
+    console.debug(`[Plox] @${handle} already pending, skipping`);
     return;
   }
   pending.add(handle);
 
-  console.log(`🕵️ [Investigator] Starting fresh check for @${handle}`);
-
   try {
-    const delay = generateGaussianDelay(1000, 3000);
-    // We skip delay if we're in a test environment (simulated via missing generateGaussianDelay or global)
-    if (typeof (globalThis as any).TEST_ENV === "undefined") {
-      await new Promise((r) => setTimeout(r, delay));
+    const url = `${PLOX_SERVER}/met?username=${encodeURIComponent(handle)}`;
+    console.log(`[Plox] Querying server for @${handle}`);
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
     }
 
-    const url = `https://x.com/${handle}/about`;
-    console.log(`[Worker] Fetching ${url}`);
+    const data: {
+      username: string;
+      processed: boolean;
+      location: string | null;
+    } = await response.json();
 
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        Accept: "text/html",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent":
-          typeof navigator !== "undefined"
-            ? navigator.userAgent
-            : "PloxBot/1.0",
-      },
-    });
+    console.log(`[Plox] Server response for @${handle}:`, data);
 
-    if (!response.ok)
-      throw new Error(`Fetch failed with status ${response.status}`);
+    if (data.processed && data.location) {
+      const flag = getFlagEmoji(data.location);
+      cache.set(handle, { location: data.location, flag });
 
-    const html = await response.text();
-    const location = parseLocationFromHtml(html);
+      console.log(`[Plox] @${handle} -> ${data.location} ${flag}`);
 
-    if (!location) {
-      console.warn(
-        `[Worker] Could not parse location for @${handle}. Raw HTML Snippet: ${html.substring(0, 500)}`,
-      );
-      throw new Error("Location extraction failed");
+      chrome.tabs.sendMessage(tabId, {
+        action: "visualizeFlag",
+        elementId,
+        flag,
+        location: data.location,
+      });
+    } else {
+      console.log(`[Plox] @${handle} registered but not yet processed`);
     }
-
-    const flag = getFlagEmoji(location);
-    cache.set(handle, { location, flag });
-
-    console.log(`✅ [Success] @${handle} -> ${location} ${flag}`);
-
-    chrome.tabs.sendMessage(tabId, {
-      action: "visualizeFlag",
-      elementId,
-      flag,
-      location,
-    });
   } catch (err: any) {
-    console.error(`❌ [Error] @${handle}:`, err.message);
+    console.error(`[Plox] Error for @${handle}:`, err.message);
   } finally {
     pending.delete(handle);
   }
