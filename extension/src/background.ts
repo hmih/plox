@@ -17,18 +17,16 @@ export const performInvestigation = async (
   tabId: number,
   elementId: string,
 ) => {
-  if (cache.has(handle)) {
-    const cached = cache.get(handle);
-    if (cached) {
-      console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
-      chrome.tabs.sendMessage(tabId, {
-        action: "visualizeFlag",
-        elementId,
-        flag: cached.flag,
-        location: cached.location,
-      });
-      return;
-    }
+  const cached = cache.get(handle);
+  if (cached) {
+    console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
+    chrome.tabs.sendMessage(tabId, {
+      action: "visualizeFlag",
+      elementId,
+      flag: cached.flag,
+      location: cached.location,
+    });
+    return;
   }
 
   if (pending.has(handle)) {
@@ -69,8 +67,8 @@ export const performInvestigation = async (
     } else {
       console.log(`[Plox] @${handle} registered but not yet processed`);
     }
-  } catch (err: any) {
-    console.error(`[Plox] Error for @${handle}:`, err.message);
+  } catch (err) {
+    console.error(`[Plox] Error for @${handle}:`, err);
   } finally {
     pending.delete(handle);
   }
@@ -82,13 +80,11 @@ if (
   chrome.runtime.onMessage
 ) {
   chrome.runtime.onMessage.addListener((request, sender) => {
-    if (
-      request.action === "processHandle" &&
-      sender.tab &&
-      sender.tab.id !== undefined
-    ) {
-      performInvestigation(request.handle, sender.tab.id, request.elementId);
+    if (request.action !== "processHandle") return;
+    if (!sender.tab?.id) {
+      console.warn("[Plox] processHandle received without tab id");
+      return;
     }
-    return true;
+    performInvestigation(request.handle, sender.tab.id, request.elementId);
   });
 }

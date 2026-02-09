@@ -22,32 +22,39 @@
       injectFlag(message.elementId, message.flag, message.location);
     }
   });
+  var HANDLE_SELECTOR = [
+    '[data-testid="User-Names"] span:last-child:not([data-plox-id])',
+    'div[dir="ltr"] > span:first-child:not([data-plox-id])'
+  ].join(", ");
   var scanForHandles = () => {
-    const handleElements = document.querySelectorAll(
-      '[data-testid="User-Names"] span:last-child, div[dir="ltr"] > span:first-child'
-    );
-    handleElements.forEach((el) => {
-      const htmlEl = el;
-      const text = htmlEl.innerText;
-      if (text.startsWith("@") && !htmlEl.dataset["ploxId"]) {
-        const handle = text.substring(1);
-        const elementId = `plox-${nextId++}`;
-        htmlEl.dataset["ploxId"] = elementId;
-        chrome.runtime.sendMessage({
-          action: "processHandle",
-          handle,
-          elementId
-        });
-      }
-    });
-  };
-  var observer = new MutationObserver(() => {
-    if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(scanForHandles, { timeout: 500 });
-    } else {
-      setTimeout(scanForHandles, 200);
+    const handleElements = document.querySelectorAll(HANDLE_SELECTOR);
+    for (const el of handleElements) {
+      const text = el.innerText;
+      if (!text.startsWith("@")) continue;
+      const handle = text.substring(1);
+      const elementId = `plox-${nextId++}`;
+      el.dataset["ploxId"] = elementId;
+      console.debug(`[Plox] Discovered @${handle} (${elementId})`);
+      chrome.runtime.sendMessage({
+        action: "processHandle",
+        handle,
+        elementId
+      });
     }
-  });
+  };
+  var scanPending = false;
+  var scheduleScan = () => {
+    if (scanPending) return;
+    scanPending = true;
+    requestIdleCallback(
+      () => {
+        scanPending = false;
+        scanForHandles();
+      },
+      { timeout: 500 }
+    );
+  };
+  var observer = new MutationObserver(scheduleScan);
   observer.observe(document.body, { childList: true, subtree: true });
   scanForHandles();
 })();

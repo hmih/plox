@@ -28,34 +28,45 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-const scanForHandles = () => {
-  const handleElements = document.querySelectorAll(
-    '[data-testid="User-Names"] span:last-child, div[dir="ltr"] > span:first-child',
-  );
+const HANDLE_SELECTOR = [
+  '[data-testid="User-Names"] span:last-child:not([data-plox-id])',
+  'div[dir="ltr"] > span:first-child:not([data-plox-id])',
+].join(", ");
 
-  handleElements.forEach((el) => {
-    const htmlEl = el as HTMLElement;
-    const text = htmlEl.innerText;
-    if (text.startsWith("@") && !htmlEl.dataset["ploxId"]) {
-      const handle = text.substring(1);
-      const elementId = `plox-${nextId++}`;
-      htmlEl.dataset["ploxId"] = elementId;
-      chrome.runtime.sendMessage({
-        action: "processHandle",
-        handle,
-        elementId,
-      });
-    }
-  });
+const scanForHandles = () => {
+  const handleElements =
+    document.querySelectorAll<HTMLElement>(HANDLE_SELECTOR);
+
+  for (const el of handleElements) {
+    const text = el.innerText;
+    if (!text.startsWith("@")) continue;
+
+    const handle = text.substring(1);
+    const elementId = `plox-${nextId++}`;
+    el.dataset["ploxId"] = elementId;
+    console.debug(`[Plox] Discovered @${handle} (${elementId})`);
+    chrome.runtime.sendMessage({
+      action: "processHandle",
+      handle,
+      elementId,
+    });
+  }
 };
 
-const observer = new MutationObserver(() => {
-  if ("requestIdleCallback" in window) {
-    (window as any).requestIdleCallback(scanForHandles, { timeout: 500 });
-  } else {
-    setTimeout(scanForHandles, 200);
-  }
-});
+let scanPending = false;
 
+const scheduleScan = () => {
+  if (scanPending) return;
+  scanPending = true;
+  requestIdleCallback(
+    () => {
+      scanPending = false;
+      scanForHandles();
+    },
+    { timeout: 500 },
+  );
+};
+
+const observer = new MutationObserver(scheduleScan);
 observer.observe(document.body, { childList: true, subtree: true });
 scanForHandles();

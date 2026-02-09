@@ -20,20 +20,17 @@
     global: "\u{1F310}",
     austria: "\u{1F1E6}\u{1F1F9}"
   };
+  var REGIONAL_INDICATOR_OFFSET = 127397;
   var getFlagEmoji = (locationName) => {
     if (!locationName) return "\u{1F3F3}\uFE0F";
-    const cleanName = locationName.trim();
-    const lower = cleanName.toLowerCase();
+    const trimmed = locationName.trim();
+    const lower = trimmed.toLowerCase();
     for (const [key, emoji] of Object.entries(REGION_FLAGS)) {
       if (lower.includes(key)) return emoji;
     }
-    const countryCodeMatch = cleanName.match(/\b([A-Z]{2})\b/);
-    if (countryCodeMatch) {
-      const code = countryCodeMatch[1];
-      if (code) {
-        const offset = 127397;
-        return String.fromCodePoint(code.charCodeAt(0) + offset) + String.fromCodePoint(code.charCodeAt(1) + offset);
-      }
+    const code = trimmed.match(/\b([A-Z]{2})\b/)?.[1];
+    if (code) {
+      return String.fromCodePoint(code.charCodeAt(0) + REGIONAL_INDICATOR_OFFSET) + String.fromCodePoint(code.charCodeAt(1) + REGIONAL_INDICATOR_OFFSET);
     }
     return "\u{1F3F3}\uFE0F";
   };
@@ -43,18 +40,16 @@
   var cache = /* @__PURE__ */ new Map();
   var pending = /* @__PURE__ */ new Set();
   var performInvestigation = async (handle, tabId, elementId) => {
-    if (cache.has(handle)) {
-      const cached = cache.get(handle);
-      if (cached) {
-        console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
-        chrome.tabs.sendMessage(tabId, {
-          action: "visualizeFlag",
-          elementId,
-          flag: cached.flag,
-          location: cached.location
-        });
-        return;
-      }
+    const cached = cache.get(handle);
+    if (cached) {
+      console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
+      chrome.tabs.sendMessage(tabId, {
+        action: "visualizeFlag",
+        elementId,
+        flag: cached.flag,
+        location: cached.location
+      });
+      return;
     }
     if (pending.has(handle)) {
       console.debug(`[Plox] @${handle} already pending, skipping`);
@@ -84,17 +79,19 @@
         console.log(`[Plox] @${handle} registered but not yet processed`);
       }
     } catch (err) {
-      console.error(`[Plox] Error for @${handle}:`, err.message);
+      console.error(`[Plox] Error for @${handle}:`, err);
     } finally {
       pending.delete(handle);
     }
   };
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((request, sender) => {
-      if (request.action === "processHandle" && sender.tab && sender.tab.id !== void 0) {
-        performInvestigation(request.handle, sender.tab.id, request.elementId);
+      if (request.action !== "processHandle") return;
+      if (!sender.tab?.id) {
+        console.warn("[Plox] processHandle received without tab id");
+        return;
       }
-      return true;
+      performInvestigation(request.handle, sender.tab.id, request.elementId);
     });
   }
 })();

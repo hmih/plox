@@ -127,19 +127,25 @@ test.describe("Plox Refactoring Guard", () => {
   });
 
   test("getFlagEmoji mapping robustness", async () => {
-    const testCases = [
+    const testCases: { location: string | null; expectedFlag: string }[] = [
+      // Direct REGION_FLAGS matches
       { location: "Japan", expectedFlag: "🇯🇵" },
       { location: "United Kingdom", expectedFlag: "🇬🇧" },
+      // Substring matches (city, country)
       { location: "Berlin, Germany", expectedFlag: "🇩🇪" },
       { location: "Paris, France", expectedFlag: "🇫🇷" },
+      // ISO country code fallback
+      { location: "JP", expectedFlag: "🇯🇵" },
+      { location: "Lives in BR", expectedFlag: "🇧🇷" },
+      // Null / empty / no match → white flag
       { location: null, expectedFlag: "🏳️" },
+      { location: "", expectedFlag: "🏳️" },
+      { location: "   ", expectedFlag: "🏳️" },
+      { location: "Somewhere unknown", expectedFlag: "🏳️" },
     ];
 
-    testCases.forEach((tc) => {
-      const flag = getFlagEmoji(tc.location);
-      expect(flag).toBe(tc.expectedFlag);
-    });
-
-    console.log("✅ getFlagEmoji mapping verified.");
+    for (const tc of testCases) {
+      expect(getFlagEmoji(tc.location)).toBe(tc.expectedFlag);
+    }
   });
 });
