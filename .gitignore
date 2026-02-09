@@ -1,8 +1,10 @@
-.node-env/
-node_modules/
-package-lock.json
+extension/.node-env/
+extension/node_modules/
+extension/package-lock.json
+extension/dist/*.js
 plox_extension.zip
-test-results/
+extension/test-results/
+extension/playwright-report/
 server/__pycache__/
 server/tests/__pycache__/
 *.pyc

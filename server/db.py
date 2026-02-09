@@ -15,7 +15,13 @@ def get_db():
     return _connection
 
 
+_initialized = False
+
+
 def init_db():
+    global _initialized
+    if _initialized:
+        return
     db = get_db()
     db.execute(
         """
@@ -37,3 +43,4 @@ def init_db():
     """
     )
     db.commit()
+    _initialized = True

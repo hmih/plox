@@ -54,7 +54,7 @@ test("realistic extension simulation on realKalos account", async ({
 
   // 3. Inject CSS
   const css = fs.readFileSync(
-    path.join(__dirname, "../extension/styles.css"),
+    path.join(__dirname, "../dist/styles.css"),
     "utf8",
   );
   await page.addStyleTag({ content: css });
@@ -105,7 +105,7 @@ test("realistic extension simulation on realKalos account", async ({
 
   // 5. Inject the bundled content script
   const contentJs = fs.readFileSync(
-    path.join(__dirname, "../extension/content.js"),
+    path.join(__dirname, "../dist/content.js"),
     "utf8",
   );
   await page.addScriptTag({ content: contentJs });

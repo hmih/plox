@@ -16,6 +16,7 @@ def fresh_db(tmp_path):
     os.environ["PLOX_DB_PATH"] = db_path
     db_module.DATABASE = db_path
     db_module._connection = None
+    db_module._initialized = False
     with app.app_context():
         init_db()
     yield

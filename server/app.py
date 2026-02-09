@@ -10,13 +10,6 @@ def ensure_db():
     init_db()
 
 
-@app.after_request
-def add_cors(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return response
-
 
 @app.route("/met", methods=["GET"])
 def met():

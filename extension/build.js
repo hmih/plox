@@ -2,7 +2,7 @@ const esbuild = require("esbuild");
 const path = require("path");
 
 const srcDir = path.join(__dirname, "src");
-const outDir = path.join(__dirname, "extension");
+const outDir = path.join(__dirname, "dist");
 
 async function build() {
   try {
@@ -25,7 +25,7 @@ async function build() {
       },
     });
 
-    console.log("✅ Build complete! Files in extension/");
+    console.log("✅ Build complete! Files in dist/");
   } catch (err) {
     console.error("❌ Build failed:", err.message);
     process.exit(1);

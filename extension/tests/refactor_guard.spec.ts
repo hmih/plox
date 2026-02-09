@@ -10,15 +10,15 @@ test.describe("Plox Refactoring Guard", () => {
 
   test.beforeAll(() => {
     contentJs = fs.readFileSync(
-      path.join(__dirname, "../extension/content.js"),
+      path.join(__dirname, "../dist/content.js"),
       "utf8",
     );
     backgroundJs = fs.readFileSync(
-      path.join(__dirname, "../extension/background.js"),
+      path.join(__dirname, "../dist/background.js"),
       "utf8",
     );
     stylesCss = fs.readFileSync(
-      path.join(__dirname, "../extension/styles.css"),
+      path.join(__dirname, "../dist/styles.css"),
       "utf8",
     );
   });

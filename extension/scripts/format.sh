@@ -16,7 +16,7 @@ echo "🎨 Formatting project files..."
 npx prettier --write \
     "src/**/*.{ts,js}" \
     "tests/**/*.{ts,js}" \
-    "extension/**/*.{html,css,json,js}" \
+    "dist/**/*.{html,css,json,js}" \
     "*.{js,json,md}"
 
 echo "🐚 Formatting shell scripts..."
