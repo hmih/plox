@@ -4,27 +4,43 @@ const fs = require("fs");
 
 // Helper to copy manifest
 async function copyManifest(outDir) {
-  const manifestPath = path.join(__dirname, "dist", "manifest.json");
+  // Source manifest from the root of extension/ not extension/dist/
+  const manifestPath = path.join(__dirname, "manifest.json");
   const targetPath = path.join(outDir, "manifest.json");
-  
+
   if (fs.existsSync(manifestPath)) {
     fs.copyFileSync(manifestPath, targetPath);
     console.log(`📄 Copied manifest to ${outDir}`);
   } else {
-    console.warn("⚠️ Warning: manifest.json not found in dist root.");
+    console.warn(`⚠️ Warning: manifest.json not found at ${manifestPath}`);
   }
+}
+
+// Helper to clean output directory
+function cleanDir(dir) {
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  fs.mkdirSync(dir, { recursive: true });
 }
 
 const srcDir = path.join(__dirname, "src");
 
 // Determine build mode and output directory
 const isProd = process.env.PRODUCTION === "true";
-const outDir = isProd ? path.join(__dirname, "dist/prod") : path.join(__dirname, "dist/dev");
+const outDir = isProd
+  ? path.join(__dirname, "dist/prod")
+  : path.join(__dirname, "dist/dev");
 
 async function build() {
   try {
-    console.log(`🚀 Building Plox extension (${isProd ? "PRODUCTION" : "DEVELOPMENT"})...`);
-    console.log(`📁 Output: ${outDir}`);
+    console.log(
+      `🚀 Building Plox extension (${isProd ? "PRODUCTION" : "DEVELOPMENT"})...`,
+    );
+
+    // Clean output directory first
+    cleanDir(outDir);
+    console.log(`🧹 Cleaned output: ${outDir}`);
 
     await esbuild.build({
       entryPoints: [
@@ -34,23 +50,23 @@ async function build() {
       ],
       bundle: true,
       outdir: outDir,
-      
+
       // SECURITY & STEALTH CONFIGURATION
-      minify: isProd,             // Total minification in production
-      minifyIdentifiers: isProd,  // Obfuscate variable names
-      minifySyntax: isProd,       // Compress syntax
-      legalComments: "none",      // Strip all comments
-      
+      minify: isProd, // Total minification in production
+      minifyIdentifiers: isProd, // Obfuscate variable names
+      minifySyntax: isProd, // Compress syntax
+      legalComments: "none", // Strip all comments
+
       target: ["chrome121"],
       format: "iife",
-      
+
       // DROP CONSOLE IN PRODUCTION
       drop: isProd ? ["console", "debugger"] : [],
-      
+
       define: {
         // Inject dev mode flag for our log helper
         __DEV__: JSON.stringify(!isProd),
-        
+
         PLOX_SERVER_URL: JSON.stringify(
           process.env.PLOX_SERVER_URL || "https://plox.krepost.xy",
         ),

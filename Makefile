@@ -1,20 +1,11 @@
-# Automatic isolated environment activation
-NODE_BIN := $(CURDIR)/extension/.node-env/bin
-export PATH := $(NODE_BIN):$(PATH)
-
 # Load configuration from .env if it exists
 -include .env
 export $(shell [ -f .env ] && sed 's/=.*//' .env)
 
-.PHONY: help env build test format clean dist setup server-up server-down server-test
-
-setup:
-	@chmod +x extension/scripts/setup_env.sh
-	./extension/scripts/setup_env.sh
+.PHONY: help build test format clean dist server-up server-down server-test
 
 help:
 	@echo "Available commands:"
-	@echo "  make env          - Activate the isolated node environment (usage: source extension/env.sh)"
 	@echo "  make build        - Build the extension into extension/dist/"
 	@echo "  make test         - Run Playwright integration tests"
 	@echo "  make format       - Format code using Prettier"
@@ -23,11 +14,6 @@ help:
 	@echo "  make server-up    - Build and start plox server (foreground with logs)"
 	@echo "  make server-down  - Stop containers"
 	@echo "  make server-test  - Run Python server tests"
-
-# Note: 'source extension/env.sh' must be run in the shell, cannot be a make command
-# that affects the parent process. But we can remind the user.
-env:
-	@echo "Please run: source extension/env.sh"
 
 extension-build:
 	cd extension && npm run build:dev && npm run build:prod
@@ -39,13 +25,15 @@ format:
 	cd extension && ./scripts/format.sh
 
 clean:
-	rm -rf extension/dist/dev/*.js
-	rm -rf extension/dist/prod/*.js
+	rm -rf extension/dist/dev/*
+	rm -rf extension/dist/prod/*
 	rm -rf extension/test-results/
 	rm -rf extension/playwright-report/
+	rm -f plox_extension.zip
 
 extension-dist: extension-build
 	@echo "📦 Preparing deployment package (PRODUCTION)..."
+	rm -f plox_extension.zip
 	cd extension/dist/prod && zip -r ../../../plox_extension.zip . -x "*.map"
 	@echo "✅ Deployment package created: plox_extension.zip"
 

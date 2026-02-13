@@ -5,10 +5,10 @@ let
 in
 pkgs.mkShellNoCC {
   buildInputs = with pkgs; [
-    nodejs_20
-    python311
-    python311Packages.flask
-    python311Packages.pytest
+    nodejs_22
+    python313
+    python313Packages.flask
+    python313Packages.pytest
     python311Packages.black
     gnumake
     git
