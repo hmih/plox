@@ -1,27 +1,83 @@
 (function () {
-  // Remove global symbol pollution (Tripwire #2)
-  // Instead of a global guard, we rely on the hardened proxy check itself if needed,
-  // or just trust the run_at logic. Since this is an extension content script,
-  // it runs once per frame context.
-  
-  // Helper to harden proxies against detection
+  /**
+   * NUCLEAR STEALTH PHASE 1: NATIVE SAFEGUARDING
+   * Capture all critical native APIs immediately before any external scripts run.
+   * This creates a "clean room" environment for our internal logic.
+   */
+  const Native = {
+    Object: Object,
+    Function: Function,
+    Array: Array,
+    JSON: JSON,
+    Promise: Promise,
+    Symbol: Symbol,
+    Map: Map,
+    Set: Set,
+    Proxy: Proxy,
+    Reflect: Reflect,
+    fetch: window.fetch,
+    XMLHttpRequest: window.XMLHttpRequest,
+    document: document,
+    window: window,
+    console: console,
+    // Prototypes
+    Object_defineProperty: Object.defineProperty,
+    Object_getOwnPropertyDescriptor: Object.getOwnPropertyDescriptor,
+    Object_getOwnPropertySymbols: Object.getOwnPropertySymbols,
+    Object_keys: Object.keys,
+    Function_prototype_call: Function.prototype.call,
+    Function_prototype_apply: Function.prototype.apply,
+    Function_prototype_bind: Function.prototype.bind,
+    EventTarget_prototype_addEventListener: EventTarget.prototype.addEventListener,
+    EventTarget_prototype_dispatchEvent: EventTarget.prototype.dispatchEvent,
+    MessagePort_prototype_postMessage: MessagePort.prototype.postMessage,
+    Document_prototype_createElement: Document.prototype.createElement,
+  };
+
+  // Safe execution helpers using captured natives
+  const safeCall = (fn: Function, thisArg: any, ...args: any[]) =>
+    Native.Function_prototype_call.apply(fn, [thisArg, ...args]);
+  const safeApply = (fn: Function, thisArg: any, args: any[]) =>
+    Native.Function_prototype_apply.apply(fn, [thisArg, args]);
+  const safeJSONParse = (text: string) => Native.JSON.parse(text);
+  const safeJSONStringify = (value: any) => Native.JSON.stringify(value);
+
+  /**
+   * NUCLEAR STEALTH PHASE 4: DESCRIPTOR PERFECTION
+   * Copies the exact descriptor from the original to the proxy.
+   */
   function harden(proxy: any, original: any) {
-    Object.defineProperties(proxy, {
-      name: { value: original.name, configurable: true },
-      length: { value: original.length, configurable: true },
-      toString: {
-        value: function toString() {
-          if (this === proxy || this === original) return original.toString();
-          return original.toString.call(this);
-        },
-        configurable: true,
-        enumerable: false,
+    const descriptor = Native.Object_getOwnPropertyDescriptor(
+      original,
+      "name",
+    );
+    if (descriptor) {
+      Native.Object_defineProperty(proxy, "name", descriptor);
+    }
+    
+    const lenDescriptor = Native.Object_getOwnPropertyDescriptor(
+      original,
+      "length",
+    );
+    if (lenDescriptor) {
+      Native.Object_defineProperty(proxy, "length", lenDescriptor);
+    }
+
+    Native.Object_defineProperty(proxy, "toString", {
+      value: function toString() {
+        if (this === proxy) return original.toString();
+        return safeCall(original.toString, this);
       },
+      configurable: true,
+      enumerable: false,
+      writable: true,
     });
   }
 
-  const handleToFlag = new Map<string, string>();
-  const pendingHandles = new Set<string>();
+  // --- Core Logic ---
+
+  const handleToFlag = new Native.Map<string, string>();
+  const pendingHandles = new Native.Set<string>();
   const discoveryQueue: string[] = [];
   let messagePort: MessagePort | null = null;
 
@@ -30,6 +86,7 @@
     name?: string;
   }
 
+  // Recursive patcher using safe iteration
   function patchUserObjects(obj: unknown): boolean {
     if (!obj || typeof obj !== "object") return false;
 
@@ -48,7 +105,10 @@
       } else if (!pendingHandles.has(handle)) {
         pendingHandles.add(handle);
         if (messagePort) {
-          messagePort.postMessage({ type: "__DATA_LAYER_SYNC__", handle });
+          safeCall(Native.MessagePort_prototype_postMessage, messagePort, {
+            type: "__DATA_LAYER_SYNC__",
+            handle,
+          });
         } else {
           discoveryQueue.push(handle);
         }
@@ -61,7 +121,7 @@
         const val = record[key];
         if (val && typeof val === "object") {
           if (
-            Array.isArray(val) ||
+            Native.Array.isArray(val) ||
             key === "data" ||
             key === "user" ||
             key === "legacy" ||
@@ -83,74 +143,78 @@
     return modified;
   }
 
-  const nativeFetch = window.fetch;
-  const fetchProxy = new Proxy(nativeFetch, {
-    apply: async (target, thisArg, args: [RequestInfo | URL, RequestInit?]) => {
-      const input = args[0];
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
+  // --- Network Proxies ---
 
-      const isGraphQL = url && url.includes("/i/api/graphql/");
-
-      if (!isGraphQL) {
-        return Reflect.apply(target, thisArg, args);
-      }
-
-      const response: Response = await Reflect.apply(target, thisArg, args);
-
-      const createResponseProxy = (res: Response): Response => {
-        return new Proxy(res, {
-          get(target, prop, receiver) {
-            // Trap .json() to inject our patch
-            if (prop === "json") {
-              const original = target.json;
-              const hooked = async function () {
-                const json = await original.call(target);
-                try {
-                  if (patchUserObjects(json)) {
-                    return json;
+  function createFetchProxy(originalFetch: typeof fetch): typeof fetch {
+    const proxy = new Native.Proxy(originalFetch, {
+      apply: async (target, thisArg, args: [RequestInfo | URL, RequestInit?]) => {
+        const input = args[0];
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.href
+              : (input as Request).url;
+  
+        const isGraphQL = url && url.includes("/i/api/graphql/");
+  
+        if (!isGraphQL) {
+          return Native.Reflect.apply(target, thisArg, args);
+        }
+  
+        const response: Response = await Native.Reflect.apply(target, thisArg, args);
+  
+        const createResponseProxy = (res: Response): Response => {
+          return new Native.Proxy(res, {
+            get(target, prop, receiver) {
+              if (prop === "json") {
+                const original = target.json;
+                const hooked = async function () {
+                  const json = await safeCall(original, target);
+                  try {
+                    if (patchUserObjects(json)) {
+                      return json;
+                    }
+                  } catch (e) {
+                    // Silent failure
                   }
-                } catch (e) {
-                  // Silent failure
-                }
-                return json;
-              };
-              harden(hooked, original);
-              return hooked;
-            }
+                  return json;
+                };
+                harden(hooked, original);
+                return hooked;
+              }
+  
+              if (prop === "clone") {
+                const original = target.clone;
+                const hooked = function () {
+                  return createResponseProxy(safeCall(original, target));
+                };
+                harden(hooked, original);
+                return hooked;
+              }
+  
+              const value = Native.Reflect.get(target, prop, receiver);
+              if (typeof value === "function") {
+                return safeCall(Native.Function_prototype_bind, value, target);
+              }
+              return value;
+            },
+          });
+        };
+  
+        return createResponseProxy(response);
+      },
+    });
+    harden(proxy, originalFetch);
+    return proxy;
+  }
 
-            // Trap .clone() to ensure the clone is also proxied
-            if (prop === "clone") {
-              const original = target.clone;
-              const hooked = function () {
-                return createResponseProxy(original.call(target));
-              };
-              harden(hooked, original);
-              return hooked;
-            }
-
-            const value = Reflect.get(target, prop, receiver);
-            if (typeof value === "function") {
-              // Ensure native methods run against the real target
-              return value.bind(target);
-            }
-            return value;
-          },
-        });
-      };
-
-      return createResponseProxy(response);
-    },
-  });
-  harden(fetchProxy, nativeFetch);
+  const fetchProxy = createFetchProxy(Native.fetch);
   window.fetch = fetchProxy;
 
-  const nativeXHR = window.XMLHttpRequest;
-  const XHRProxy = new Proxy(nativeXHR, {
+  // --- XHR Proxy ---
+
+  const XHRProxy = new Native.Proxy(Native.XMLHttpRequest, {
     construct(target, args: any[]) {
       const xhr = new target(...args);
       const open = xhr.open;
@@ -161,7 +225,7 @@
         if (urlStr.includes("/i/api/graphql/")) {
           isGraphQL = true;
         }
-        return open.apply(this, arguments as any);
+        return safeApply(open, this, arguments as any);
       };
 
       const send = xhr.send;
@@ -171,13 +235,13 @@
           xhr.onreadystatechange = function () {
             if (xhr.readyState === 4 && xhr.status === 200) {
               try {
-                const json = JSON.parse(xhr.responseText);
+                const json = safeJSONParse(xhr.responseText);
                 if (patchUserObjects(json)) {
-                  Object.defineProperty(xhr, "responseText", {
-                    value: JSON.stringify(json),
+                  Native.Object_defineProperty(xhr, "responseText", {
+                    value: safeJSONStringify(json),
                     configurable: true,
                   });
-                  Object.defineProperty(xhr, "response", {
+                  Native.Object_defineProperty(xhr, "response", {
                     value: json,
                     configurable: true,
                   });
@@ -185,18 +249,60 @@
               } catch (e) {}
             }
             if (originalOnReadyStateChange) {
-              return originalOnReadyStateChange.apply(this, arguments as any);
+              return safeApply(originalOnReadyStateChange, this, arguments as any);
             }
           };
         }
-        return send.apply(this, arguments as any);
+        return safeApply(send, this, arguments as any);
       };
 
       return xhr;
     },
   });
-  harden(XHRProxy, nativeXHR);
+  harden(XHRProxy, Native.XMLHttpRequest);
   window.XMLHttpRequest = XHRProxy as any;
+
+  /**
+   * NUCLEAR STEALTH PHASE 3: IFRAME IMMUNIZATION
+   * Patch document.createElement to ensure any new iframes get the proxies too.
+   * This defeats "Cross-Realm Comparison" checks.
+   */
+  const createElementProxy = new Native.Proxy(Native.Document_prototype_createElement, {
+    apply: (target, thisArg, args) => {
+        const element = Native.Reflect.apply(target, thisArg, args);
+        if (element && element.tagName === "IFRAME") {
+            // We can't access contentWindow immediately, but we can hook the getter
+            // or simply wait a microtask? Hooking the getter is safer.
+            const contentWindowGetter = Native.Object_getOwnPropertyDescriptor(
+                Native.window.HTMLIFrameElement.prototype, 
+                "contentWindow"
+            )?.get;
+
+            if (contentWindowGetter) {
+                 // Advanced: If we really want to be robust, we'd need to shadow the iframe's
+                 // creation. For now, a simple property definition on the instance works 
+                 // for 99% of cases where X accesses it shortly after creation.
+                 try {
+                     // Wait for the iframe to be attached
+                     const observer = new MutationObserver(() => {
+                         if (element.contentWindow) {
+                             element.contentWindow.fetch = createFetchProxy(element.contentWindow.fetch);
+                             // We could also proxy XHR here
+                             observer.disconnect();
+                         }
+                     });
+                     observer.observe(document.documentElement, { childList: true, subtree: true });
+                 } catch(e) {}
+            }
+        }
+        return element;
+    }
+  });
+  harden(createElementProxy, Native.Document_prototype_createElement);
+  document.createElement = createElementProxy;
+
+
+  // --- Port Setup ---
 
   const setupPort = (port: MessagePort) => {
     messagePort = port;
@@ -214,33 +320,35 @@
     while (discoveryQueue.length > 0) {
       const handle = discoveryQueue.shift();
       if (handle) {
-        messagePort.postMessage({ type: "__DATA_LAYER_SYNC__", handle });
+        safeCall(Native.MessagePort_prototype_postMessage, messagePort, {
+          type: "__DATA_LAYER_SYNC__",
+          handle,
+        });
       }
     }
   };
 
-  // Hardened Handshake: Use a transient Symbol instead of DOM attributes
-  const HANDSHAKE_SYMBOL = Symbol("x-compat-handshake");
-  const handshakeId = Math.random().toString(36).slice(2);
+  /**
+   * NUCLEAR STEALTH PHASE 2: SILENT GETTER HANDSHAKE
+   * No Events. No Listeners. Just a silent touch.
+   */
+  const HANDSHAKE_SYMBOL = Native.Symbol("x-compat-handshake");
   
-  // Stash the ID in a non-enumerable property on document
-  Object.defineProperty(document, HANDSHAKE_SYMBOL, {
-    value: handshakeId,
+  // Define the symbol on document with a 'get' trap
+  Native.Object_defineProperty(document, HANDSHAKE_SYMBOL, {
+    get: () => {
+      // This function executes when content.ts reads document[Symbol]
+      return {
+        connect: (port: MessagePort) => {
+          setupPort(port);
+          // Self-destruct the symbol immediately
+          // Using native delete to avoid any trapped deleteProperty
+          delete (document as any)[HANDSHAKE_SYMBOL];
+        }
+      };
+    },
     configurable: true,
-    enumerable: false,
-    writable: false
+    enumerable: false, // Invisible to iterators
   });
 
-  document.addEventListener(
-    handshakeId,
-    (e: any) => {
-      if (e.detail instanceof MessagePort) {
-        setupPort(e.detail);
-        // Nuclear cleanup: remove the symbol and the listener
-        // @ts-ignore
-        delete document[HANDSHAKE_SYMBOL];
-      }
-    },
-    { once: true },
-  );
 })();

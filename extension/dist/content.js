@@ -40,26 +40,27 @@
     });
   };
   var checkHandshake = () => {
-    const handshakeId = document.documentElement.getAttribute("data-x-compat-id");
-    if (handshakeId) {
-      const channel = new MessageChannel();
-      document.dispatchEvent(
-        new CustomEvent(handshakeId, { detail: channel.port2 })
-      );
-      setupBridge(channel.port1);
-      return true;
+    const syms = Object.getOwnPropertySymbols(document);
+    const handshakeSym = syms.find((s) => s.toString() === "Symbol(x-compat-handshake)");
+    if (handshakeSym) {
+      const secureInterface = document[handshakeSym];
+      if (secureInterface && typeof secureInterface.connect === "function") {
+        const channel = new MessageChannel();
+        secureInterface.connect(channel.port2);
+        setupBridge(channel.port1);
+        return true;
+      }
     }
     return false;
   };
-  var observer = new MutationObserver((mutations) => {
-    if (checkHandshake()) {
-      observer.disconnect();
-    }
-  });
-  if (!checkHandshake()) {
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-x-compat-id"]
-    });
-  }
+  var initHandshake = () => {
+    if (checkHandshake()) return;
+    const interval = setInterval(() => {
+      if (checkHandshake()) {
+        clearInterval(interval);
+      }
+    }, 50);
+    setTimeout(() => clearInterval(interval), 5e3);
+  };
+  initHandshake();
 })();

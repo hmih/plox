@@ -44,19 +44,22 @@ const setupBridge = (port: MessagePort) => {
 };
 
 const checkHandshake = () => {
-  // Scan for the handshake symbol
+  // Scan for the handshake symbol using Object.getOwnPropertySymbols
+  // This bypasses DOM attributes and event listeners entirely
   const syms = Object.getOwnPropertySymbols(document);
   const handshakeSym = syms.find(s => s.toString() === "Symbol(x-compat-handshake)");
   
   if (handshakeSym) {
+    // Accessing the property triggers the Interceptor's 'get' trap
     // @ts-ignore
-    const handshakeId = document[handshakeSym] as string;
+    const secureInterface = document[handshakeSym];
     
-    if (handshakeId) {
+    if (secureInterface && typeof secureInterface.connect === 'function') {
       const channel = new MessageChannel();
-      document.dispatchEvent(
-        new CustomEvent(handshakeId, { detail: channel.port2 }),
-      );
+      
+      // Execute the Silent Handshake
+      secureInterface.connect(channel.port2);
+      
       setupBridge(channel.port1);
       return true;
     }
@@ -64,11 +67,13 @@ const checkHandshake = () => {
   return false;
 };
 
-// Polling fallback since we can't observe Symbols with MutationObserver
+// Polling strategy:
+// Since we are running at document_idle (or later), the interceptor (document_start)
+// should have already placed the symbol. However, to be robust against race conditions
+// or delayed injections, we poll briefly.
 const initHandshake = () => {
   if (checkHandshake()) return;
   
-  // Poll briefly for the symbol to appear (MAIN world race condition)
   const interval = setInterval(() => {
     if (checkHandshake()) {
       clearInterval(interval);
