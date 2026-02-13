@@ -26,6 +26,7 @@ import { GhostCmd, log } from "./core";
     Object_defineProperty: Object.defineProperty,
     Object_getOwnPropertyDescriptor: Object.getOwnPropertyDescriptor,
     Object_getOwnPropertySymbols: Object.getOwnPropertySymbols,
+    Object_getPrototypeOf: Object.getPrototypeOf,
     Object_keys: Object.keys,
     Function_prototype_call: Function.prototype.call,
     Function_prototype_apply: Function.prototype.apply,
@@ -34,6 +35,10 @@ import { GhostCmd, log } from "./core";
     EventTarget_prototype_dispatchEvent: EventTarget.prototype.dispatchEvent,
     MessagePort_prototype_postMessage: MessagePort.prototype.postMessage,
     Document_prototype_createElement: Document.prototype.createElement,
+    HTMLIFrameElement_prototype_contentWindow_get: Object.getOwnPropertyDescriptor(
+      window.HTMLIFrameElement.prototype,
+      "contentWindow",
+    )?.get,
   };
 
   // Safe execution helpers using captured natives
@@ -49,6 +54,11 @@ import { GhostCmd, log } from "./core";
    * Copies the exact descriptor from the original to the proxy.
    */
   function harden(proxy: any, original: any) {
+    const descriptors = Native.Object_getOwnPropertyDescriptor(original, "prototype");
+    if (descriptors) {
+        Native.Object_defineProperty(proxy, "prototype", descriptors);
+    }
+    
     const descriptor = Native.Object_getOwnPropertyDescriptor(
       original,
       "name",
@@ -266,37 +276,38 @@ import { GhostCmd, log } from "./core";
   window.XMLHttpRequest = XHRProxy as any;
 
   /**
-   * NUCLEAR STEALTH PHASE 3: IFRAME IMMUNIZATION
-   * Patch document.createElement to ensure any new iframes get the proxies too.
-   * This defeats "Cross-Realm Comparison" checks.
+   * NUCLEAR STEALTH PHASE 3: IFRAME IMMUNIZATION (PROXY VARIANT)
+   * Instead of defining properties on the element (which fails hasOwnProperty checks),
+   * we wrap the entire iframe element in a Proxy. This is undetectable via property inspection.
    */
   const createElementProxy = new Native.Proxy(Native.Document_prototype_createElement, {
     apply: (target, thisArg, args) => {
         const element = Native.Reflect.apply(target, thisArg, args);
         if (element && element.tagName === "IFRAME") {
-            // We can't access contentWindow immediately, but we can hook the getter
-            // or simply wait a microtask? Hooking the getter is safer.
-            const contentWindowGetter = Native.Object_getOwnPropertyDescriptor(
-                Native.window.HTMLIFrameElement.prototype, 
-                "contentWindow"
-            )?.get;
-
-            if (contentWindowGetter) {
-                 // Advanced: If we really want to be robust, we'd need to shadow the iframe's
-                 // creation. For now, a simple property definition on the instance works 
-                 // for 99% of cases where X accesses it shortly after creation.
-                 try {
-                     // Wait for the iframe to be attached
-                     const observer = new MutationObserver(() => {
-                         if (element.contentWindow) {
-                             element.contentWindow.fetch = createFetchProxy(element.contentWindow.fetch);
-                             // We could also proxy XHR here
-                             observer.disconnect();
-                         }
-                     });
-                     observer.observe(document.documentElement, { childList: true, subtree: true });
-                 } catch(e) {}
-            }
+            const handler = {
+                get: (target: any, prop: string | symbol, receiver: any) => {
+                    if (prop === "contentWindow") {
+                        const win = Native.HTMLIFrameElement_prototype_contentWindow_get 
+                            ? safeCall(Native.HTMLIFrameElement_prototype_contentWindow_get, target)
+                            : undefined;
+                        
+                        if (win && !win._plox_proxied) {
+                            try {
+                                 win.fetch = createFetchProxy(win.fetch);
+                                 Native.Object_defineProperty(win, "_plox_proxied", {
+                                     value: true,
+                                     enumerable: false,
+                                     configurable: true
+                                 });
+                            } catch (e) {}
+                        }
+                        return win;
+                    }
+                    return Native.Reflect.get(target, prop, receiver);
+                }
+            };
+            // Return a Proxy of the element, hiding our hook completely
+            return new Native.Proxy(element, handler);
         }
         return element;
     }
@@ -332,25 +343,23 @@ import { GhostCmd, log } from "./core";
   };
 
   /**
-   * NUCLEAR STEALTH PHASE 2: SILENT GETTER HANDSHAKE
-   * No Events. No Listeners. Just a silent touch.
+   * NUCLEAR STEALTH PHASE 2: EVENT-BASED HANDSHAKE
+   * Camouflaged as a generic React internal message to avoid flagging.
    */
-  const HANDSHAKE_SYMBOL = Native.Symbol("x-compat-handshake");
-  
-  // Define the symbol on document with a 'get' trap
-  Native.Object_defineProperty(document, HANDSHAKE_SYMBOL, {
-    get: () => {
-      // This function executes when content.ts reads document[Symbol]
-      return {
-        connect: (port: MessagePort) => {
-          setupPort(port);
-          // Self-destruct the symbol immediately
-          // Using native delete to avoid any trapped deleteProperty
-          delete (document as any)[HANDSHAKE_SYMBOL];
-        }
-      };
-    },
-    configurable: true,
-    enumerable: false, // Invisible to iterators
-  });
+  const HANDSHAKE_REQ = "ReactDevTools_connect_v4"; // Common enough to be ignored
+
+  const onHandshake = (event: Event) => {
+      const e = event as MessageEvent;
+      if (e.data && e.data.source === HANDSHAKE_REQ) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          const port = e.ports[0];
+          if (port) {
+              setupPort(port);
+          }
+      }
+  };
+
+  // Add the listener using the native, secured prototype
+  safeCall(Native.EventTarget_prototype_addEventListener, window, "message", onHandshake, true);
 })();
