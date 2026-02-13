@@ -17,7 +17,7 @@ pkgs.mkShellNoCC {
   ];
 
   shellHook = ''
-    echo "❄️  Plox development environment loaded (noCC)"
+    echo "Plox development environment loaded (noCC)"
     echo "Node: $(node -v)"
     echo "Python: $(python --version)"
     echo "Build, format, and test tools are ready."

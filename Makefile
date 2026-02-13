@@ -54,5 +54,8 @@ server-up:
 server-down:
 	docker compose down
 
+server-logs:
+	docker compose logs -f
+
 server-test:
 	cd server && python3 -m pytest tests/ -v
