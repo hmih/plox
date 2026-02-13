@@ -1,3 +1,26 @@
+// GHOST Protocol: Interceptor <-> Bridge (Private Channel)
+export const GhostCmd = {
+  SYNC: 0,
+  UPDATE: 1,
+  RETRY: 2,
+} as const;
+
+// BUS Protocol: Bridge <-> Background (Chrome Runtime)
+export const BusCmd = {
+  PROCESS: 4,
+  UPDATE: 5,
+  RETRY: 6,
+} as const;
+
+// Build-time definition for development mode
+declare const __DEV__: boolean;
+
+export const log = (msg: string, ...args: any[]) => {
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    console.log(`[PLOX] ${msg}`, ...args);
+  }
+};
+
 export const REGION_FLAGS: Record<string, string> = {
   "united states": "🇺🇸",
   usa: "🇺🇸",

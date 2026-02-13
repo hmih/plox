@@ -1,17 +1,12 @@
 /**
  * Bridge between MAIN world (Interceptor) and Extension Background
  */
-const Cmd = {
-  SYNC: 0,
-  UPDATE: 1,
-  RETRY: 2,
-  PROCESS: 3
-} as const;
+import { GhostCmd, BusCmd, log } from "./core";
 
 const setupBridge = (port: MessagePort) => {
   port.onmessage = (event) => {
     const data = event.data as Record<string, unknown>;
-    if (data.type === Cmd.SYNC) {
+    if (data.type === GhostCmd.SYNC) {
       const { handle } = data as { handle: string };
 
       // Stealth Caching: Check storage before messaging background
@@ -19,14 +14,16 @@ const setupBridge = (port: MessagePort) => {
         chrome.storage.local.get([`cache:${handle}`], (result) => {
           const cached = result[`cache:${handle}`];
           if (cached) {
+            log(`Cache hit for ${handle}`);
             port.postMessage({
-              type: Cmd.UPDATE,
+              type: GhostCmd.UPDATE,
               handle,
               flag: cached.flag,
             });
           } else {
+            log(`Requesting lookup for ${handle}`);
             chrome.runtime.sendMessage({
-              action: Cmd.PROCESS,
+              action: BusCmd.PROCESS,
               handle,
               elementId: "graphql-injected",
             });
@@ -37,15 +34,16 @@ const setupBridge = (port: MessagePort) => {
   };
 
   chrome.runtime.onMessage.addListener((message: any) => {
-    if (message.action === Cmd.UPDATE) {
+    if (message.action === BusCmd.UPDATE) {
+      log(`Received update for ${message.handle}`);
       port.postMessage({
-        type: Cmd.UPDATE,
+        type: GhostCmd.UPDATE,
         handle: message.handle ?? "",
         flag: message.flag,
       });
-    } else if (message.action === Cmd.RETRY) {
+    } else if (message.action === BusCmd.RETRY) {
       port.postMessage({
-        type: Cmd.RETRY,
+        type: GhostCmd.RETRY,
         handle: message.handle,
       });
     }

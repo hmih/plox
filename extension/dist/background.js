@@ -1,6 +1,16 @@
 "use strict";
 (() => {
   // src/core.ts
+  var BusCmd = {
+    PROCESS: 4,
+    UPDATE: 5,
+    RETRY: 6
+  };
+  var log = (msg, ...args) => {
+    if (true) {
+      console.log(`[PLOX] ${msg}`, ...args);
+    }
+  };
   var REGION_FLAGS = {
     "united states": "\u{1F1FA}\u{1F1F8}",
     usa: "\u{1F1FA}\u{1F1F8}",
@@ -43,8 +53,7 @@
     const cached = cache.get(handle);
     if (cached) {
       chrome.tabs.sendMessage(tabId, {
-        action: 1,
-        // visualizeFlag
+        action: BusCmd.UPDATE,
         handle,
         elementId,
         flag: cached.flag,
@@ -69,8 +78,7 @@
         cache.set(handle, entry);
         chrome.storage.local.set({ [`cache:${handle}`]: entry });
         chrome.tabs.sendMessage(tabId, {
-          action: 1,
-          // visualizeFlag
+          action: BusCmd.UPDATE,
           handle,
           elementId,
           flag,
@@ -78,9 +86,9 @@
         });
       }
     } catch (err) {
+      log(`Lookup failed for ${handle}:`, err);
       chrome.tabs.sendMessage(tabId, {
-        action: 2,
-        // lookupFailed
+        action: BusCmd.RETRY,
         handle
       });
     } finally {
@@ -90,7 +98,7 @@
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(
       (request, sender) => {
-        if (request.action !== 3) return;
+        if (request.action !== BusCmd.PROCESS) return;
         if (!sender.tab?.id) {
           return;
         }

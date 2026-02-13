@@ -81,7 +81,12 @@ Run these in the browser console during development:
 | `app.py` | API Lookup | Flask Server | N/A |
 
 **Protocol Reference:**
+**GHOST Protocol (Interceptor <-> Bridge)**
 - `0` (SYNC): Discovery relay.
 - `1` (UPDATE): Injection update.
 - `2` (RETRY): Recovery trigger.
-- `3` (PROCESS): Background lookup request.
+
+**BUS Protocol (Bridge <-> Background)**
+- `4` (PROCESS): Background lookup request.
+- `5` (UPDATE): Found data.
+- `6` (RETRY): Failed lookup.

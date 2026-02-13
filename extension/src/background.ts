@@ -1,4 +1,4 @@
-import { getFlagEmoji } from "./core";
+import { getFlagEmoji, BusCmd, log } from "./core";
 
 declare const PLOX_SERVER_URL: string;
 const PLOX_SERVER =
@@ -12,11 +12,6 @@ export const cache = new Map<
 >();
 export const pending = new Set<string>();
 
-// Opaque Protocol:
-// 1 = UPDATE (visualizeFlag)
-// 2 = RETRY (lookupFailed)
-// 3 = PROCESS (processHandle)
-
 export const performInvestigation = async (
   handle: string,
   tabId: number,
@@ -25,7 +20,7 @@ export const performInvestigation = async (
   const cached = cache.get(handle);
   if (cached) {
     chrome.tabs.sendMessage(tabId, {
-      action: 1, // visualizeFlag
+      action: BusCmd.UPDATE,
       handle,
       elementId,
       flag: cached.flag,
@@ -66,7 +61,7 @@ export const performInvestigation = async (
       chrome.storage.local.set({ [`cache:${handle}`]: entry });
 
       chrome.tabs.sendMessage(tabId, {
-        action: 1, // visualizeFlag
+        action: BusCmd.UPDATE,
         handle,
         elementId,
         flag,
@@ -74,8 +69,9 @@ export const performInvestigation = async (
       });
     }
   } catch (err) {
+    log(`Lookup failed for ${handle}:`, err);
     chrome.tabs.sendMessage(tabId, {
-      action: 2, // lookupFailed
+      action: BusCmd.RETRY,
       handle,
     });
   } finally {
@@ -96,7 +92,7 @@ if (
 ) {
   chrome.runtime.onMessage.addListener(
     (request: PloxMessage, sender: chrome.runtime.MessageSender) => {
-      if (request.action !== 3) return; // processHandle
+      if (request.action !== BusCmd.PROCESS) return;
       if (!sender.tab?.id) {
         return;
       }

@@ -1,3 +1,5 @@
+import { GhostCmd, log } from "./core";
+
 (function () {
   /**
    * NUCLEAR STEALTH PHASE 1: NATIVE SAFEGUARDING
@@ -86,12 +88,6 @@
     name?: string;
   }
 
-  const Cmd = {
-    SYNC: 0,
-    UPDATE: 1,
-    RETRY: 2
-  } as const;
-
   // Recursive patcher using safe iteration
   function patchUserObjects(obj: unknown): boolean {
     if (!obj || typeof obj !== "object") return false;
@@ -107,12 +103,13 @@
         if (!user.name.includes(flag)) {
           user.name = `${user.name} ${flag}`;
           modified = true;
+          log(`Applied flag to ${handle}`);
         }
       } else if (!pendingHandles.has(handle)) {
         pendingHandles.add(handle);
         if (messagePort) {
           safeCall(Native.MessagePort_prototype_postMessage, messagePort, {
-            type: Cmd.SYNC,
+            type: GhostCmd.SYNC,
             handle,
           });
         } else {
@@ -314,10 +311,10 @@
     messagePort = port;
     messagePort.onmessage = (event) => {
       const data = event.data as Record<string, unknown>;
-      if (data.type === Cmd.UPDATE) {
+      if (data.type === GhostCmd.UPDATE) {
         const update = data as { handle: string; flag: string };
         handleToFlag.set(update.handle.toLowerCase(), update.flag);
-      } else if (data.type === Cmd.RETRY) {
+      } else if (data.type === GhostCmd.RETRY) {
         const { handle } = data as { handle: string };
         pendingHandles.delete(handle.toLowerCase());
       }
@@ -327,7 +324,7 @@
       const handle = discoveryQueue.shift();
       if (handle) {
         safeCall(Native.MessagePort_prototype_postMessage, messagePort, {
-          type: Cmd.SYNC,
+          type: GhostCmd.SYNC,
           handle,
         });
       }

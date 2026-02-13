@@ -48,13 +48,13 @@ test("realistic extension simulation on realKalos account", async ({
           sendMessage: async (msg: any) => {
             console.log("[Test Mock] Content script sent message:", msg);
             if (
-              msg.action === 3 && // processHandle
+              msg.action === 4 && // BusCmd.PROCESS
               msg.handle.toLowerCase() === "realkalos"
             ) {
               setTimeout(() => {
                 storage[`cache:${msg.handle}`] = { location, flag };
                 const update = {
-                  action: 1, // visualizeFlag
+                  action: 5, // BusCmd.UPDATE
                   handle: msg.handle,
                   flag: flag,
                   location: location,

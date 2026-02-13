@@ -1,29 +1,42 @@
 "use strict";
 (() => {
-  // src/content.ts
-  var Cmd = {
+  // src/core.ts
+  var GhostCmd = {
     SYNC: 0,
     UPDATE: 1,
-    RETRY: 2,
-    PROCESS: 3
+    RETRY: 2
   };
+  var BusCmd = {
+    PROCESS: 4,
+    UPDATE: 5,
+    RETRY: 6
+  };
+  var log = (msg, ...args) => {
+    if (true) {
+      console.log(`[PLOX] ${msg}`, ...args);
+    }
+  };
+
+  // src/content.ts
   var setupBridge = (port) => {
     port.onmessage = (event) => {
       const data = event.data;
-      if (data.type === Cmd.SYNC) {
+      if (data.type === GhostCmd.SYNC) {
         const { handle } = data;
         if (typeof chrome !== "undefined" && chrome.storage) {
           chrome.storage.local.get([`cache:${handle}`], (result) => {
             const cached = result[`cache:${handle}`];
             if (cached) {
+              log(`Cache hit for ${handle}`);
               port.postMessage({
-                type: Cmd.UPDATE,
+                type: GhostCmd.UPDATE,
                 handle,
                 flag: cached.flag
               });
             } else {
+              log(`Requesting lookup for ${handle}`);
               chrome.runtime.sendMessage({
-                action: Cmd.PROCESS,
+                action: BusCmd.PROCESS,
                 handle,
                 elementId: "graphql-injected"
               });
@@ -33,15 +46,16 @@
       }
     };
     chrome.runtime.onMessage.addListener((message) => {
-      if (message.action === Cmd.UPDATE) {
+      if (message.action === BusCmd.UPDATE) {
+        log(`Received update for ${message.handle}`);
         port.postMessage({
-          type: Cmd.UPDATE,
+          type: GhostCmd.UPDATE,
           handle: message.handle ?? "",
           flag: message.flag
         });
-      } else if (message.action === Cmd.RETRY) {
+      } else if (message.action === BusCmd.RETRY) {
         port.postMessage({
-          type: Cmd.RETRY,
+          type: GhostCmd.RETRY,
           handle: message.handle
         });
       }

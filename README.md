@@ -103,7 +103,9 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
 *   **Target:** X.com GraphQL responses.
 *   **Traversal:** Recursively scan JSON objects for keys: `data`, `user`, `legacy`, `user_results`, `result`, `core`, `instructions`, `entries`, `itemContent`, `tweet_results`.
 *   **Modification:** Identify objects with `screen_name` and `name`. If a location match is found in the cache, append the flag emoji to `name` string.
-*   **Protocol:** Uses **Opaque Integers** (0, 1, 2, 3) for all internal messaging (including background communication) to avoid identifiable string tokens.
+*   **Protocol:** Uses dual-channel **Opaque Integers**:
+    *   **GHOST (0-2):** Interceptor <-> Bridge.
+    *   **BUS (4-6):** Bridge <-> Background.
 
 ### 4. Backend Specification
 *   **Stack:** Python (Flask) + SQLite.
