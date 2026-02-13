@@ -83,30 +83,23 @@ test.describe("Plox Refactoring Guard", () => {
           },
           sendMessage: async (msg: any) => {
             if (msg.action === "processHandle") {
-              try {
-                // Hardcoded bypass to avoid fetch proxy issues in test
-                const data = {
-                  username: "testuser1",
-                  processed: true,
-                  location: "Germany",
+              const resp = await fetch(
+                `https://plox.krepost.xy/met?username=${msg.handle}`,
+              );
+              const data = await resp.json();
+              if (data.processed) {
+                const flag = "🇩🇪";
+                storage[`cache:${msg.handle}`] = {
+                  location: data.location,
+                  flag,
                 };
-                
-                if (data.processed) {
-                  const flag = "🇩🇪";
-                  storage[`cache:${msg.handle}`] = {
-                    location: data.location,
-                    flag,
-                  };
-                  listeners.forEach((fn) => {
-                    fn({
-                      action: "visualizeFlag",
-                      handle: msg.handle,
-                      flag: flag,
-                    });
-                  });
-                }
-              } catch (e) {
-                console.error("[Test Mock] Processing failed:", e);
+                listeners.forEach((fn) =>
+                  fn({
+                    action: "visualizeFlag",
+                    handle: msg.handle,
+                    flag: flag,
+                  }),
+                );
               }
             }
           },
