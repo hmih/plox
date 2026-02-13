@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { extractHtmlFromMhtml } from "./plox_test_helper";
+import { BusCmd } from "../src/core";
 
 test("realistic extension simulation on realKalos account", async ({
   page,
@@ -33,7 +34,15 @@ test("realistic extension simulation on realKalos account", async ({
   await page.setContent(mainHtml);
 
   await page.evaluate(
-    ({ location, flag }: { location: string; flag: string }) => {
+    ({
+      location,
+      flag,
+      BusCmd,
+    }: {
+      location: string;
+      flag: string;
+      BusCmd: any;
+    }) => {
       const listeners: any[] = [];
       const storage: Record<string, any> = {};
 
@@ -48,13 +57,13 @@ test("realistic extension simulation on realKalos account", async ({
           sendMessage: async (msg: any) => {
             console.log("[Test Mock] Content script sent message:", msg);
             if (
-              msg.action === 4 && // BusCmd.PROCESS
+              msg.action === BusCmd.PROCESS &&
               msg.handle.toLowerCase() === "realkalos"
             ) {
               setTimeout(() => {
                 storage[`cache:${msg.handle}`] = { location, flag };
                 const update = {
-                  action: 5, // BusCmd.UPDATE
+                  action: BusCmd.UPDATE,
                   handle: msg.handle,
                   flag: flag,
                   location: location,
@@ -92,6 +101,7 @@ test("realistic extension simulation on realKalos account", async ({
     {
       location: "Eastern Europe (Non-EU)",
       flag: "🇪🇺",
+      BusCmd: BusCmd,
     },
   );
 

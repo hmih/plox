@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
-import { getFlagEmoji } from "../src/core";
+import { getFlagEmoji, BusCmd } from "../src/core";
 
 test.describe("Plox Refactoring Guard", () => {
   let contentJs: string;
@@ -71,7 +71,7 @@ test.describe("Plox Refactoring Guard", () => {
       });
     });
 
-    await page.evaluate(() => {
+    await page.evaluate((BusCmd) => {
       const listeners: any[] = [];
       const storage: Record<string, any> = {};
 
@@ -86,7 +86,7 @@ test.describe("Plox Refactoring Guard", () => {
             addListener: (fn: any) => listeners.push(fn),
           },
           sendMessage: async (msg: any) => {
-            if (msg.action === 4) {
+            if (msg.action === BusCmd.PROCESS) {
               // BusCmd.PROCESS
               const resp = await fetch(
                 `https://plox.krepost.xy/met?username=${msg.handle}`,
@@ -100,7 +100,7 @@ test.describe("Plox Refactoring Guard", () => {
                 };
                 listeners.forEach((fn) =>
                   fn({
-                    action: 5, // BusCmd.UPDATE
+                    action: BusCmd.UPDATE,
                     handle: msg.handle,
                     flag: flag,
                   }),
@@ -130,7 +130,7 @@ test.describe("Plox Refactoring Guard", () => {
         writable: true,
         configurable: true,
       });
-    });
+    }, BusCmd);
 
     // Inject scripts
     await page.addScriptTag({ content: interceptorJs });
