@@ -6,10 +6,10 @@ in
 pkgs.mkShellNoCC {
   buildInputs = with pkgs; [
     nodejs_22
-    python313
-    python313Packages.flask
-    python313Packages.pytest
-    python311Packages.black
+    python3
+    python3Packages.flask
+    python3Packages.pytest
+    python3Packages.black
     gnumake
     git
     sqlite

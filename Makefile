@@ -25,8 +25,7 @@ format:
 	cd extension && ./scripts/format.sh
 
 clean:
-	rm -rf extension/dist/dev/*
-	rm -rf extension/dist/prod/*
+	rm -fr extension/dist/
 	rm -rf extension/test-results/
 	rm -rf extension/playwright-report/
 	rm -f plox_extension.zip

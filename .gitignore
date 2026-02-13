@@ -1,7 +1,7 @@
 extension/.node-env/
 extension/node_modules/
+extension/dist/
 extension/package-lock.json
-extension/dist/*.js
 plox_extension.zip
 extension/test-results/
 extension/playwright-report/
