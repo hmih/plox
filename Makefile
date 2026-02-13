@@ -46,7 +46,7 @@ clean:
 
 extension-dist: extension-build
 	@echo "📦 Preparing deployment package (PRODUCTION)..."
-	zip -r plox_extension.zip extension/dist/prod/ -x "*.map"
+	cd extension/dist/prod && zip -r ../../../plox_extension.zip . -x "*.map"
 	@echo "✅ Deployment package created: plox_extension.zip"
 
 server-up:

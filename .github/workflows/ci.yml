@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   extension:
     name: Extension tests
@@ -42,3 +45,31 @@ jobs:
       - run: pip install -r requirements.txt pytest
 
       - run: python -m pytest tests/ -v
+
+  dev-release:
+    name: Dev Release
+    needs: [extension, server]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build Extension
+        run: |
+          cd extension
+          npm install
+          cd ..
+          make extension-dist
+
+      - name: Update Dev Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev
+          name: "Development Build"
+          body: "Rolling development build from commit ${{ github.sha }}"
+          prerelease: true
+          files: plox_extension.zip

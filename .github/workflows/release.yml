@@ -1,0 +1,56 @@
+name: Public Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # Verify everything passes first (Extension)
+      - name: Extension Tests
+        run: |
+          cd extension
+          npm install
+          npx playwright install --with-deps chromium
+          npm run test
+      
+      # Verify everything passes first (Server)
+      - name: Server Tests
+        run: |
+          cd server
+          pip install -r requirements.txt pytest
+          python -m pytest tests/ -v
+
+      # Build Artifact
+      - name: Build Extension
+        run: |
+          make extension-dist
+
+      # Create Release
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          name: ${{ inputs.version }}
+          generate_release_notes: true
+          files: plox_extension.zip
