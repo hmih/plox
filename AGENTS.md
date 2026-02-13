@@ -12,7 +12,7 @@ Follow these steps at the start of every session:
     ```
 2.  **State Verification:** Run the test suite to ensure the baseline is stable:
     ```sh
-    make build && make test && make server-test
+    make extension-build && make extension-test && make server-test
     ```
 3.  **Stealth Audit:** Verify that no new footprints have been introduced.
     - Check `extension/src/` for any `document.createElement` or `styles.css` imports.

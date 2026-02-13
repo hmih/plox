@@ -24,9 +24,7 @@ jobs:
 
       - run: npx playwright install --with-deps chromium
 
-      - run: npm run build
-
-      - run: npm test
+      - run: make extension-test
 
   server:
     name: Server tests

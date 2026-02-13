@@ -5,10 +5,11 @@
   "scripts": {
     "build:dev": "PRODUCTION=false node build.js",
     "build:prod": "PRODUCTION=true node build.js",
-    "build": "npm run build:dev && npm run build:prod",
     "test:dev": "PRODUCTION=false npx playwright test",
     "test:prod": "PRODUCTION=true npx playwright test",
-    "test": "npm run test:dev && npm run test:prod"
+    "verify:dev": "npm run build:dev && npm run test:dev",
+    "verify:prod": "npm run build:prod && npm run test:prod",
+    "test": "npm run verify:dev && npm run verify:prod"
   },
   "keywords": [],
   "author": "",

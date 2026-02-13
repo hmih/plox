@@ -58,8 +58,8 @@ The extension is split across three isolated execution environments to balance s
 
 ### Development Environment
 *   **Bootstrap:** `nix-shell --pure`
-*   **Build:** `make build`
-*   **Test Suite:** `make test` (Extension) and `make server-test` (Server)
+*   **Build:** `make extension-build` (Builds both dev and prod)
+*   **Test Suite:** `make extension-test` (Runs dev tests then prod tests)
 *   **Audit:** Verify stealth by running `fetch.toString()` in the console; it must return `function fetch() { [native code] }`.
 
 ---

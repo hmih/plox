@@ -29,16 +29,10 @@ help:
 env:
 	@echo "Please run: source extension/env.sh"
 
-build:
-	cd extension && npm run build
+extension-build:
+	cd extension && npm run build:dev && npm run build:prod
 
-build-dev:
-	cd extension && npm run build:dev
-
-build-prod:
-	cd extension && npm run build:prod
-
-test:
+extension-test:
 	cd extension && npm run test
 
 format:
@@ -50,7 +44,7 @@ clean:
 	rm -rf extension/test-results/
 	rm -rf extension/playwright-report/
 
-dist: build-prod
+extension-dist: extension-build
 	@echo "📦 Preparing deployment package (PRODUCTION)..."
 	zip -r plox_extension.zip extension/dist/prod/ -x "*.map"
 	@echo "✅ Deployment package created: plox_extension.zip"
