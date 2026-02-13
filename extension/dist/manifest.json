@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "X.com Account Flags",
-  "description": "All we're missing is greentext",
-  "version": "0.3.0",
+  "name": "System Font Compatibility Layer",
+  "description": "Optimizes font rendering and character support for complex scripts.",
+  "version": "0.4.0",
   "permissions": ["storage"],
   "host_permissions": [
     "https://x.com/*",
@@ -25,6 +25,5 @@
       "world": "MAIN",
       "run_at": "document_start"
     }
-  ],
-  "web_accessible_resources": []
+  ]
 }

@@ -23,9 +23,7 @@ test.describe("Plox Refactoring Guard", () => {
     );
   });
 
-  test("Data-layer patching via Interceptor", async ({
-    page,
-  }) => {
+  test("Data-layer patching via Interceptor", async ({ page }) => {
     page.on("console", (msg) => console.log(`[PAGE CONSOLE] ${msg.text()}`));
 
     await page.setContent(`
@@ -71,41 +69,50 @@ test.describe("Plox Refactoring Guard", () => {
 
     await page.evaluate(() => {
       const listeners: any[] = [];
+      const storage: Record<string, any> = {};
       (window as any).chrome = {
         runtime: {
           onMessage: {
             addListener: (fn: any) => listeners.push(fn),
           },
           sendMessage: async (msg: any) => {
-            // Simulate background processing
             if (msg.action === "processHandle") {
-               const resp = await fetch(`https://plox.krepost.xy/met?username=${msg.handle}`);
-               const data = await resp.json();
-               if (data.processed) {
-                 listeners.forEach(fn => fn({
-                   action: "visualizeFlag",
-                   handle: msg.handle,
-                   flag: "🇩🇪"
-                 }));
-               }
+              const resp = await fetch(
+                `https://plox.krepost.xy/met?username=${msg.handle}`,
+              );
+              const data = await resp.json();
+              if (data.processed) {
+                const flag = "🇩🇪";
+                storage[`cache:${msg.handle}`] = {
+                  location: data.location,
+                  flag,
+                };
+                listeners.forEach((fn) =>
+                  fn({
+                    action: "visualizeFlag",
+                    handle: msg.handle,
+                    flag: flag,
+                  }),
+                );
+              }
             }
           },
         },
+        storage: {
+          local: {
+            get: (keys: string[], cb: any) => {
+              const res: any = {};
+              keys.forEach((k) => {
+                if (storage[k]) res[k] = storage[k];
+              });
+              setTimeout(() => cb(res), 0);
+            },
+            set: (items: any) => {
+              Object.assign(storage, items);
+            },
+          },
+        },
       };
-
-      // Handle the private channel handshake in the test mock
-      window.addEventListener("message", (event) => {
-        if (event.data && event.data.type === "__INITIAL_STATE__" && event.ports[0]) {
-           const port = event.ports[0];
-           port.onmessage = (e: any) => {
-              if (e.data.type === "__DATA_LAYER_SYNC__") {
-                 window.chrome.runtime.sendMessage(e.data);
-              }
-           };
-           // Store port to send updates back
-           (window as any).testMessagePort = port;
-        }
-      });
     });
 
     // Inject scripts
@@ -117,9 +124,7 @@ test.describe("Plox Refactoring Guard", () => {
       await fetch("https://x.com/i/api/graphql/UserByScreenName");
     });
 
-    // 2. Wait for the discovery -> background -> bridge -> interceptor flow
-    // We'll wait until the interceptor has the flag in its internal map.
-    // Since we can't easily check internal state, we'll wait a bit and then fetch again.
+    // 2. Wait for the flow
     await page.waitForTimeout(500);
 
     // 3. Second fetch should return patched data
@@ -137,16 +142,12 @@ test.describe("Plox Refactoring Guard", () => {
 
   test("getFlagEmoji mapping robustness", async () => {
     const testCases: { location: string | null; expectedFlag: string }[] = [
-      // Direct REGION_FLAGS matches
       { location: "Japan", expectedFlag: "🇯🇵" },
       { location: "United Kingdom", expectedFlag: "🇬🇧" },
-      // Substring matches (city, country)
       { location: "Berlin, Germany", expectedFlag: "🇩🇪" },
       { location: "Paris, France", expectedFlag: "🇫🇷" },
-      // ISO country code fallback
       { location: "JP", expectedFlag: "🇯🇵" },
       { location: "Lives in BR", expectedFlag: "🇧🇷" },
-      // Null / empty / no match → white flag
       { location: null, expectedFlag: "🏳️" },
       { location: "", expectedFlag: "🏳️" },
       { location: "   ", expectedFlag: "🏳️" },

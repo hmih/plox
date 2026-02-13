@@ -42,7 +42,6 @@
   var performInvestigation = async (handle, tabId, elementId) => {
     const cached = cache.get(handle);
     if (cached) {
-      console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
       chrome.tabs.sendMessage(tabId, {
         action: "visualizeFlag",
         handle,
@@ -53,23 +52,21 @@
       return;
     }
     if (pending.has(handle)) {
-      console.debug(`[Plox] @${handle} already pending, skipping`);
       return;
     }
     pending.add(handle);
     try {
       const url = `${PLOX_SERVER}/met?username=${encodeURIComponent(handle)}`;
-      console.log(`[Plox] Querying server for @${handle}`);
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Server returned ${response.status}`);
       }
       const data = await response.json();
-      console.log(`[Plox] Server response for @${handle}:`, data);
       if (data.processed && data.location) {
         const flag = getFlagEmoji(data.location);
-        cache.set(handle, { location: data.location, flag });
-        console.log(`[Plox] @${handle} -> ${data.location} ${flag}`);
+        const entry = { location: data.location, flag };
+        cache.set(handle, entry);
+        chrome.storage.local.set({ [`cache:${handle}`]: entry });
         chrome.tabs.sendMessage(tabId, {
           action: "visualizeFlag",
           handle,
@@ -77,11 +74,8 @@
           flag,
           location: data.location
         });
-      } else {
-        console.log(`[Plox] @${handle} registered but not yet processed`);
       }
     } catch (err) {
-      console.error(`[Plox] Error for @${handle}:`, err);
       chrome.tabs.sendMessage(tabId, {
         action: "lookupFailed",
         handle
@@ -95,7 +89,6 @@
       (request, sender) => {
         if (request.action !== "processHandle") return;
         if (!sender.tab?.id) {
-          console.warn("[Plox] processHandle received without tab id");
           return;
         }
         performInvestigation(request.handle, sender.tab.id, request.elementId);

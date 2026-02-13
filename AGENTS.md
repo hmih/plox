@@ -1,63 +1,80 @@
 # Plox: Developer Agent Handbook
 
-This document provides operational protocols and bootstrapping instructions for AI agents working on the Plox project. For a full technical overview of the system, refer to the [README.md](./README.md).
+This document provides operational protocols and bootstrapping instructions for AI agents working on the Plox project. It prioritizes system safety and stealth integrity.
 
 ## Agent Bootstrap Protocol
 
-Whenever starting a new session or task, you MUST follow these steps to ensure environment consistency and system safety:
+Follow these steps at the start of every session:
 
-1.  **Environment Check:** Enter the pure development environment:
+1.  **Environment Check:** Enter the pure Nix shell:
     ```sh
     nix-shell --pure
     ```
-2.  **Safety Verification:** Run the full test suite to confirm the current state is stable:
+2.  **State Verification:** Run the test suite to ensure the baseline is stable:
     ```sh
-    make test && make server-test
+    make build && make test && make server-test
     ```
-3.  **Stealth Audit:** Verify that the "Zero Footprint" mandate is intact. Run `make build` and ensure no residual DOM-mutation or style-injection code exists in `extension/src/`.
+3.  **Stealth Audit:** Verify that no new footprints have been introduced.
+    - Check `extension/src/` for any `document.createElement` or `styles.css` imports.
+    - Ensure `interceptor.ts` still uses `Symbol` for markers.
 
 ---
 
 ## The Stealth Mandates (CRITICAL)
 
-Plox uses **Nuclear Stealth**. Failure to follow these rules will result in user detection and bans. If you are asked to implement a feature that requires a DOM mutation, explain why it violates the mandate and suggest a Data-Layer alternative.
+Plox uses **Nuclear Stealth**. Violation of these rules is a critical failure.
 
-1.  **No DOM Mutations:** No `appendChild`, `prepend`, or `innerHTML`.
-2.  **No Custom Attributes:** No `data-plox-*` or custom IDs.
-3.  **No Style Injection:** Do not inject CSS.
-4.  **Zero Footprint:** The DOM must be 100% identical to its original state. Verify with `document.querySelectorAll('*')` audits.
+1.  **NO DOM MUTATIONS:** Never use `appendChild`, `prepend`, or `innerHTML`.
+2.  **NO PERSISTENT ATTRIBUTES:** Never use `data-plox-*` or custom IDs.
+3.  **NO PROPERTY POLLUTION:** Use `Symbol` for internal markers on `window` or `document`.
+4.  **PROXY INTEGRITY:** Functions like `fetch` must look native to `toString()` and descriptor inspection.
+5.  **ZERO FOOTPRINT:** The DOM must be 100% identical to its original state after the handshake.
 
 ---
 
 ## Operational Workflow
 
-### Extension Development
-- **Strict Typing:** Use `strict` TypeScript. Use `unknown` with type guards instead of `any`.
-- **In-Place Patching:** Always modify JSON objects in-place in `interceptor.ts` to minimize memory overhead.
-- **Proxy Integrity:** When modifying `fetch` or `XHR` proxies, ensure they still mask themselves as native code.
+### Interceptor Development (`MAIN` World)
+- **Recursive Patching:** Maintain the `patchUserObjects` recursion list. Ensure common GraphQL keys like `data`, `user`, and `legacy` are covered.
+- **In-Place Modification:** Modify JSON objects in-place to minimize detection via memory/timing analysis.
+- **Proxy Hardening:** Always use the `harden` helper for any new proxies.
 
-### Server Development
-- **Thread Safety:** Always use request-scoped database connections via Flask's `g` object.
-- **Normalization:** Every database query involving a username MUST be lowercased and stripped.
+### Bridge Development (`ISOLATED` World)
+- **Ghost Handshake:** Maintain the `MutationObserver` + `CustomEvent` handshake. NEVER use `window.postMessage` for discovery or updates.
+- **Stealth Caching:** Always check `chrome.storage.local` before querying the background script.
 
-### Testing & Verification
-- **Regression Guard:** Any change to the interceptor or communication bridge MUST be verified with `npx playwright test`.
-- **Latency Monitoring:** Ensure patching time remains below **5ms**. If it exceeds this, optimize the recursion logic in `patchUserObjects`.
+### Background Development (Service Worker)
+- **Normalization:** Always lowercase and strip handles before server queries or cache insertion.
+- **Sync:** Ensure geolocated data is synced to `chrome.storage.local` for the Bridge.
+
+---
+
+## Verification & Auditing
+
+### Automated Testing
+- **Refactor Guard:** Run `npx playwright test tests/refactor_guard.spec.ts` after any change to the interception logic.
+- **Realistic Simulation:** Use `tests/plox.spec.ts` to verify patching against real MHTML snapshots of X.com.
+
+### Manual Audit Protocol
+Run these in the browser console during development:
+- `fetch.toString()`: Must return `function fetch() { [native code] }`.
+- `Object.getOwnPropertyDescriptor(window, 'fetch')`: Must match native (enumerable: false).
+- `Object.getOwnPropertySymbols(window)`: Check for our internal state Symbol.
+- `document.querySelectorAll('*')`: Audit for custom attributes or nodes.
 
 ---
 
 ## Technical Mapping Reference
 
-| Component | Responsibility | Environment |
-| :--- | :--- | :--- |
-| `interceptor.ts` | Data Patching | `MAIN` World (X.com Context) |
-| `content.ts` | Secure Bridge | `ISOLATED` World (Extension Context) |
-| `background.ts` | Orchestrator | Service Worker |
-| `app.py` | API & Logic | Flask Server |
-| `db.py` | Persistence | SQLite (WAL Mode) |
+| Component | Responsibility | Environment | Handshake Role |
+| :--- | :--- | :--- | :--- |
+| `interceptor.ts` | Data Patching | `MAIN` World | Sets `data-x-compat-id` |
+| `content.ts` | Secure Bridge | `ISOLATED` World | Dispatches `CustomEvent` |
+| `background.ts` | Server Sync | Service Worker | N/A |
+| `app.py` | API Lookup | Flask Server | N/A |
 
-**Handshake Event Types:**
-- `__INITIAL_STATE__`: Port-passing handshake.
+**Event IDs:**
+- `__INITIAL_STATE__`: Port exchange trigger.
 - `__DATA_LAYER_SYNC__`: Discovery relay.
-- `__DATA_LAYER_UPDATE__`: Flag injection update.
-- `__DATA_LAYER_RETRY__`: Lookup failure recovery.
+- `__DATA_LAYER_UPDATE__`: Injection update.
+- `__DATA_LAYER_RETRY__`: Recovery trigger.

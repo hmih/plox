@@ -1,7 +1,23 @@
 (function () {
-  const PLOX_MARKER = "plox-interceptor-loaded";
-  if (Object.prototype.hasOwnProperty.call(window, PLOX_MARKER)) return;
-  (window as unknown as Record<string, boolean>)[PLOX_MARKER] = true;
+  const GHOST_SYMBOL = Symbol.for("__X_SYSTEM_COMPAT__");
+  if ((window as any)[GHOST_SYMBOL]) return;
+  (window as any)[GHOST_SYMBOL] = true;
+
+  // Helper to harden proxies against detection
+  function harden(proxy: any, original: any) {
+    Object.defineProperties(proxy, {
+      name: { value: original.name, configurable: true },
+      length: { value: original.length, configurable: true },
+      toString: {
+        value: function toString() {
+          if (this === proxy || this === original) return original.toString();
+          return original.toString.call(this);
+        },
+        configurable: true,
+        enumerable: false,
+      },
+    });
+  }
 
   const handleToFlag = new Map<string, string>();
   const pendingHandles = new Set<string>();
@@ -13,16 +29,11 @@
     name?: string;
   }
 
-  /**
-   * Deep-patching function for user objects in GraphQL responses.
-   * Modifies the object in-place for maximum performance.
-   */
   function patchUserObjects(obj: unknown): boolean {
     if (!obj || typeof obj !== "object") return false;
 
     let modified = false;
 
-    // Type guard for objects that might be X users
     const user = obj as XUser;
     if (typeof user.screen_name === "string" && typeof user.name === "string") {
       const handle = user.screen_name.toLowerCase();
@@ -43,13 +54,11 @@
       }
     }
 
-    // Recurse into arrays and objects, but stay targeted
     const record = obj as Record<string, unknown>;
     for (const key in record) {
       if (Object.prototype.hasOwnProperty.call(record, key)) {
         const val = record[key];
         if (val && typeof val === "object") {
-          // Optimization: Only recurse into keys likely to contain user data or structure
           if (
             Array.isArray(val) ||
             key === "data" ||
@@ -73,7 +82,6 @@
     return modified;
   }
 
-  // Stealth Proxy for fetch
   const nativeFetch = window.fetch;
   const fetchProxy = new Proxy(nativeFetch, {
     apply: async (target, thisArg, args: [RequestInfo | URL, RequestInit?]) => {
@@ -96,15 +104,9 @@
 
       try {
         const json = (await clone.json()) as unknown;
-        const start = performance.now();
         const modified = patchUserObjects(json);
-        const end = performance.now();
 
         if (modified) {
-          console.debug(
-            `[Plox] Patched GraphQL response in ${(end - start).toFixed(2)}ms`,
-          );
-          
           const newHeaders = new Headers(response.headers);
           newHeaders.delete("content-encoding");
           newHeaders.delete("content-length");
@@ -115,29 +117,14 @@
             headers: newHeaders,
           });
         }
-      } catch (e) {
-        // Silently fail and return original response if JSON parsing or patching fails
-      }
+      } catch (e) {}
 
       return response;
     },
   });
-
-  // Mask the proxy to look native
-  Object.defineProperty(fetchProxy, "name", {
-    value: "fetch",
-    configurable: true,
-  });
-  Object.defineProperty(fetchProxy, "toString", {
-    value: function () {
-      return "function fetch() { [native code] }";
-    },
-    configurable: true,
-  });
-
+  harden(fetchProxy, nativeFetch);
   window.fetch = fetchProxy;
 
-  // Stealth Proxy for XMLHttpRequest
   const nativeXHR = window.XMLHttpRequest;
   const XHRProxy = new Proxy(nativeXHR, {
     construct(target, args: any[]) {
@@ -184,19 +171,7 @@
       return xhr;
     },
   });
-
-  // Mask XHR Proxy
-  Object.defineProperty(XHRProxy, "name", {
-    value: "XMLHttpRequest",
-    configurable: true,
-  });
-  Object.defineProperty(XHRProxy, "toString", {
-    value: function () {
-      return "function XMLHttpRequest() { [native code] }";
-    },
-    configurable: true,
-  });
-
+  harden(XHRProxy, nativeXHR);
   window.XMLHttpRequest = XHRProxy as any;
 
   const setupPort = (port: MessagePort) => {
@@ -212,7 +187,6 @@
       }
     };
 
-    // Flush any discoveries made before the port was ready
     while (discoveryQueue.length > 0) {
       const handle = discoveryQueue.shift();
       if (handle) {
@@ -221,19 +195,17 @@
     }
   };
 
-  // Listen for the initial handshake or legacy updates
-  window.addEventListener("message", (event: MessageEvent) => {
-    if (event.source !== window) return;
+  const handshakeId = Math.random().toString(36).slice(2);
+  document.documentElement.setAttribute("data-x-compat-id", handshakeId);
 
-    const data = event.data as unknown;
-    if (!data || typeof data !== "object") return;
-
-    const msg = data as Record<string, unknown>;
-
-    if (msg.type === "__INITIAL_STATE__" && event.ports && event.ports[0]) {
-      setupPort(event.ports[0]);
-    }
-  });
-
-  console.log("[Plox] Nuclear Stealth Interceptor active");
+  document.addEventListener(
+    handshakeId,
+    (e: any) => {
+      if (e.detail instanceof MessagePort) {
+        setupPort(e.detail);
+        document.documentElement.removeAttribute("data-x-compat-id");
+      }
+    },
+    { once: true },
+  );
 })();

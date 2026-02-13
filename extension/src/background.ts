@@ -19,7 +19,6 @@ export const performInvestigation = async (
 ) => {
   const cached = cache.get(handle);
   if (cached) {
-    console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
     chrome.tabs.sendMessage(tabId, {
       action: "visualizeFlag",
       handle,
@@ -31,14 +30,12 @@ export const performInvestigation = async (
   }
 
   if (pending.has(handle)) {
-    console.debug(`[Plox] @${handle} already pending, skipping`);
     return;
   }
   pending.add(handle);
 
   try {
     const url = `${PLOX_SERVER}/met?username=${encodeURIComponent(handle)}`;
-    console.log(`[Plox] Querying server for @${handle}`);
 
     const response = await fetch(url);
     if (!response.ok) {
@@ -55,13 +52,13 @@ export const performInvestigation = async (
       location: string | null;
     };
 
-    console.log(`[Plox] Server response for @${handle}:`, data);
-
     if (data.processed && data.location) {
       const flag = getFlagEmoji(data.location);
-      cache.set(handle, { location: data.location, flag });
+      const entry = { location: data.location, flag };
+      cache.set(handle, entry);
 
-      console.log(`[Plox] @${handle} -> ${data.location} ${flag}`);
+      // Stealth Caching: Sync to storage for content script access
+      chrome.storage.local.set({ [`cache:${handle}`]: entry });
 
       chrome.tabs.sendMessage(tabId, {
         action: "visualizeFlag",
@@ -70,12 +67,8 @@ export const performInvestigation = async (
         flag,
         location: data.location,
       });
-    } else {
-      console.log(`[Plox] @${handle} registered but not yet processed`);
     }
   } catch (err) {
-    console.error(`[Plox] Error for @${handle}:`, err);
-    // Notify content script of failure so it can tell the interceptor to retry later
     chrome.tabs.sendMessage(tabId, {
       action: "lookupFailed",
       handle,
@@ -100,7 +93,6 @@ if (
     (request: PloxMessage, sender: chrome.runtime.MessageSender) => {
       if (request.action !== "processHandle") return;
       if (!sender.tab?.id) {
-        console.warn("[Plox] processHandle received without tab id");
         return;
       }
       performInvestigation(request.handle, sender.tab.id, request.elementId);
