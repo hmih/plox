@@ -6,7 +6,7 @@ import { getFlagEmoji } from "../src/core";
 test.describe("Plox Refactoring Guard", () => {
   let contentJs: string;
   let backgroundJs: string;
-  let stylesCss: string;
+  let interceptorJs: string;
 
   test.beforeAll(() => {
     contentJs = fs.readFileSync(
@@ -17,36 +17,26 @@ test.describe("Plox Refactoring Guard", () => {
       path.join(__dirname, "../dist/background.js"),
       "utf8",
     );
-    stylesCss = fs.readFileSync(
-      path.join(__dirname, "../dist/styles.css"),
+    interceptorJs = fs.readFileSync(
+      path.join(__dirname, "../dist/interceptor.js"),
       "utf8",
     );
   });
 
-  test("Full flow: Main thread (scan) -> Worker (server query) -> Main thread (display)", async ({
+  test("Data-layer patching via Interceptor", async ({
     page,
   }) => {
     page.on("console", (msg) => console.log(`[PAGE CONSOLE] ${msg.text()}`));
 
     await page.setContent(`
             <html>
-                <head>
-                    <style>${stylesCss}</style>
-                </head>
                 <body>
-                    <div id="timeline">
-                        <div data-testid="User-Names">
-                            <span>Name</span>
-                            <span>@testuser1</span>
-                        </div>
-                        <div dir="ltr">
-                            <span>@testuser2</span>
-                        </div>
-                    </div>
+                    <div id="status">Ready</div>
                 </body>
             </html>
         `);
 
+    // Mock the Plox Server
     await page.route("**/met?username=testuser1", async (route) => {
       await route.fulfill({
         status: 200,
@@ -59,14 +49,22 @@ test.describe("Plox Refactoring Guard", () => {
       });
     });
 
-    await page.route("**/met?username=testuser2", async (route) => {
+    // Mock X.com GraphQL API
+    await page.route("**/i/api/graphql/UserByScreenName", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          username: "testuser2",
-          processed: true,
-          location: "United States",
+          data: {
+            user: {
+              result: {
+                legacy: {
+                  screen_name: "testuser1",
+                  name: "Test User 1",
+                },
+              },
+            },
+          },
         }),
       });
     });
@@ -79,51 +77,48 @@ test.describe("Plox Refactoring Guard", () => {
             addListener: (fn: any) => listeners.push(fn),
           },
           sendMessage: async (msg: any) => {
-            window.postMessage({ type: "TO_BACKGROUND", msg }, "*");
-          },
-        },
-        tabs: {
-          sendMessage: (_tabId: number, msg: any) => {
-            listeners.forEach((fn) => fn(msg));
+            // Simulate background processing
+            if (msg.action === "processHandle") {
+               const resp = await fetch(`https://plox.krepost.xy/met?username=${msg.handle}`);
+               const data = await resp.json();
+               if (data.processed) {
+                 listeners.forEach(fn => fn({
+                   action: "visualizeFlag",
+                   handle: msg.handle,
+                   flag: "🇩🇪"
+                 }));
+               }
+            }
           },
         },
       };
-
-      (window as any).chrome.tabs.query = (_queryInfo: any, cb: any) =>
-        cb([{ id: 1 }]);
-
-      window.addEventListener("message", (event) => {
-        if (event.data.type === "TO_BACKGROUND") {
-          if ((window as any).backgroundMsgListener) {
-            (window as any).backgroundMsgListener(event.data.msg, {
-              tab: { id: 1 },
-            });
-          }
-        }
-      });
     });
 
-    let modifiedBackgroundJs = backgroundJs.replace(
-      /chrome\.runtime\.onMessage\.addListener\(/,
-      "window.backgroundMsgListener = (",
-    );
-
-    await page.addScriptTag({ content: modifiedBackgroundJs });
+    // Inject scripts
+    await page.addScriptTag({ content: interceptorJs });
     await page.addScriptTag({ content: contentJs });
 
-    const user1Badge = page.locator(
-      'span:has-text("@testuser1") .plox-flag-badge',
-    );
-    await expect(user1Badge).toBeVisible({ timeout: 10000 });
-    await expect(user1Badge).toHaveText("🇩🇪");
+    // 1. Trigger discovery by making a fetch call (first time, no flag yet)
+    await page.evaluate(async () => {
+      await fetch("https://x.com/i/api/graphql/UserByScreenName");
+    });
 
-    const user2Badge = page.locator(
-      'span:has-text("@testuser2") .plox-flag-badge',
-    );
-    await expect(user2Badge).toBeVisible({ timeout: 10000 });
-    await expect(user2Badge).toHaveText("🇺🇸");
+    // 2. Wait for the discovery -> background -> bridge -> interceptor flow
+    // We'll wait until the interceptor has the flag in its internal map.
+    // Since we can't easily check internal state, we'll wait a bit and then fetch again.
+    await page.waitForTimeout(500);
 
-    console.log("✅ Main thread fetching and display verified.");
+    // 3. Second fetch should return patched data
+    const patchedJson = await page.evaluate(async () => {
+      const resp = await fetch("https://x.com/i/api/graphql/UserByScreenName");
+      return await resp.json();
+    });
+
+    const name = patchedJson.data.user.result.legacy.name;
+    expect(name).toContain("🇩🇪");
+    expect(name).toContain("Test User 1");
+
+    console.log("✅ Data-layer patching verified.");
   });
 
   test("getFlagEmoji mapping robustness", async () => {

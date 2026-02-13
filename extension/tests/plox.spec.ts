@@ -31,15 +31,8 @@ test("realistic extension simulation on realKalos account", async ({
     });
   });
 
-  // 2. Set the content
+    // 2. Set the content
   await page.setContent(mainHtml);
-
-  // 3. Inject CSS
-  const css = fs.readFileSync(
-    path.join(__dirname, "../dist/styles.css"),
-    "utf8",
-  );
-  await page.addStyleTag({ content: css });
 
   // 4. Mock chrome.runtime APIs and inject background logic directly into the page context
   await page.evaluate(
@@ -48,18 +41,16 @@ test("realistic extension simulation on realKalos account", async ({
         runtime: {
           sendMessage: async (msg: any) => {
             console.log("[Test Mock] Content script sent message:", msg);
-            if (msg.action === "processHandle" && msg.handle === "realKalos") {
+            if (msg.action === "processHandle" && msg.handle.toLowerCase() === "realkalos") {
               // Wait a bit to simulate processing
               setTimeout(() => {
-                window.postMessage(
-                  {
-                    source: "plox-mock-worker",
+                listeners.forEach((fn) => 
+                  fn({
                     action: "visualizeFlag",
-                    elementId: msg.elementId,
+                    handle: msg.handle,
                     flag: flag,
                     location: location,
-                  },
-                  "*",
+                  })
                 );
               }, 100);
             }
@@ -72,12 +63,6 @@ test("realistic extension simulation on realKalos account", async ({
       (window as any).chrome.runtime.onMessage = {
         addListener: (fn: any) => listeners.push(fn),
       };
-
-      window.addEventListener("message", (event) => {
-        if (event.data && event.data.source === "plox-mock-worker") {
-          listeners.forEach((fn) => fn(event.data));
-        }
-      });
     },
     {
       location: "Eastern Europe (Non-EU)",
@@ -85,23 +70,55 @@ test("realistic extension simulation on realKalos account", async ({
     },
   );
 
-  // 5. Inject the bundled content script
+  // 5. Inject the bundled scripts
+  const interceptorJs = fs.readFileSync(
+    path.join(__dirname, "../dist/interceptor.js"),
+    "utf8",
+  );
   const contentJs = fs.readFileSync(
     path.join(__dirname, "../dist/content.js"),
     "utf8",
   );
+  await page.addScriptTag({ content: interceptorJs });
   await page.addScriptTag({ content: contentJs });
 
-  // 6. Wait for the flag to appear
-  const handleSelector = '[data-plox-processed="true"]';
-  await page.waitForSelector(handleSelector, { timeout: 5000 });
+  // 6. Mock a GraphQL fetch
+  await page.route("**/i/api/graphql/User", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        data: {
+          user: {
+            result: {
+              legacy: {
+                screen_name: "realKalos",
+                name: "Kalos",
+              },
+            },
+          },
+        },
+      }),
+    });
+  });
 
-  // 7. Verification
-  const text = await page.innerText('span:has-text("@realKalos")');
-  console.log("Final UI Text:", text);
+  // 7. Trigger discovery
+  await page.evaluate(async () => {
+    await fetch("https://x.com/i/api/graphql/User");
+  });
 
-  expect(text).toContain("🇪🇺");
-  expect(text).toContain("@realKalos");
+  // 8. Wait for async processing
+  await page.waitForTimeout(500);
+
+  // 9. Verification fetch
+  const patchedJson = await page.evaluate(async () => {
+    const resp = await fetch("https://x.com/i/api/graphql/User");
+    return await resp.json();
+  });
+
+  const name = patchedJson.data.user.result.legacy.name;
+  expect(name).toContain("🇪🇺");
+  expect(name).toContain("Kalos");
 
   console.log("✅ Playwright test passed!");
 });

@@ -82,6 +82,10 @@
       }
     } catch (err) {
       console.error(`[Plox] Error for @${handle}:`, err);
+      chrome.tabs.sendMessage(tabId, {
+        action: "lookupFailed",
+        handle
+      });
     } finally {
       pending.delete(handle);
     }

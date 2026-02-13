@@ -33,7 +33,10 @@
         }
       } else if (!pendingHandles.has(handle)) {
         pendingHandles.add(handle);
-        window.postMessage({ type: "PLOX_DISCOVERED", handle }, "*");
+        window.postMessage(
+          { type: "PLOX_DISCOVERED", handle },
+          "*",
+        );
       }
     }
 
@@ -46,6 +49,8 @@
           // Optimization: Only recurse into keys likely to contain user data or structure
           if (
             Array.isArray(val) ||
+            key === "data" ||
+            key === "user" ||
             key === "legacy" ||
             key === "user_results" ||
             key === "result" ||
@@ -96,10 +101,15 @@
           console.debug(
             `[Plox] Patched GraphQL response in ${(end - start).toFixed(2)}ms`,
           );
+          
+          const newHeaders = new Headers(response.headers);
+          newHeaders.delete("content-encoding");
+          newHeaders.delete("content-length");
+
           return new Response(JSON.stringify(json), {
             status: response.status,
             statusText: response.statusText,
-            headers: response.headers,
+            headers: newHeaders,
           });
         }
       } catch (e) {
@@ -124,16 +134,81 @@
 
   window.fetch = fetchProxy;
 
+  // Stealth Proxy for XMLHttpRequest
+  const nativeXHR = window.XMLHttpRequest;
+  const XHRProxy = new Proxy(nativeXHR, {
+    construct(target, args: any[]) {
+      const xhr = new target(...args);
+      const open = xhr.open;
+      let isGraphQL = false;
+
+      xhr.open = function (method: string, url: string | URL) {
+        const urlStr = typeof url === "string" ? url : url.toString();
+        if (urlStr.includes("/i/api/graphql/")) {
+          isGraphQL = true;
+        }
+        return open.apply(this, arguments as any);
+      };
+
+      const send = xhr.send;
+      xhr.send = function () {
+        if (isGraphQL) {
+          const originalOnReadyStateChange = xhr.onreadystatechange;
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+              try {
+                const json = JSON.parse(xhr.responseText);
+                if (patchUserObjects(json)) {
+                  Object.defineProperty(xhr, "responseText", {
+                    value: JSON.stringify(json),
+                    configurable: true,
+                  });
+                  Object.defineProperty(xhr, "response", {
+                    value: json,
+                    configurable: true,
+                  });
+                }
+              } catch (e) {}
+            }
+            if (originalOnReadyStateChange) {
+              return originalOnReadyStateChange.apply(this, arguments as any);
+            }
+          };
+        }
+        return send.apply(this, arguments as any);
+      };
+
+      return xhr;
+    },
+  });
+
+  // Mask XHR Proxy
+  Object.defineProperty(XHRProxy, "name", {
+    value: "XMLHttpRequest",
+    configurable: true,
+  });
+  Object.defineProperty(XHRProxy, "toString", {
+    value: function () {
+      return "function XMLHttpRequest() { [native code] }";
+    },
+    configurable: true,
+  });
+
+  window.XMLHttpRequest = XHRProxy as any;
+
   // Listen for flag updates from the Isolated World
   window.addEventListener("message", (event: MessageEvent) => {
     const data = event.data as unknown;
-    if (
-      data &&
-      typeof data === "object" &&
-      (data as Record<string, unknown>).type === "PLOX_FLAG_UPDATE"
-    ) {
+    if (!data || typeof data !== "object") return;
+
+    const msg = data as Record<string, unknown>;
+
+    if (msg.type === "PLOX_FLAG_UPDATE") {
       const update = data as { handle: string; flag: string };
       handleToFlag.set(update.handle.toLowerCase(), update.flag);
+    } else if (msg.type === "PLOX_RETRY") {
+      const { handle } = data as { handle: string };
+      pendingHandles.delete(handle.toLowerCase());
     }
   });
 

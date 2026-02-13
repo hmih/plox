@@ -22,6 +22,14 @@
         flag: msg.flag
       };
       window.postMessage(update, "*");
+    } else if (msg.action === "lookupFailed") {
+      window.postMessage(
+        {
+          type: "PLOX_RETRY",
+          handle: msg.handle
+        },
+        "*"
+      );
     }
   });
   console.log("[Plox] Bridge script initialized");

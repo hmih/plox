@@ -75,6 +75,11 @@ export const performInvestigation = async (
     }
   } catch (err) {
     console.error(`[Plox] Error for @${handle}:`, err);
+    // Notify content script of failure so it can tell the interceptor to retry later
+    chrome.tabs.sendMessage(tabId, {
+      action: "lookupFailed",
+      handle,
+    });
   } finally {
     pending.delete(handle);
   }
