@@ -44,14 +44,13 @@ test("realistic extension simulation on realKalos account", async ({
             if (msg.action === "processHandle" && msg.handle.toLowerCase() === "realkalos") {
               // Wait a bit to simulate processing
               setTimeout(() => {
-                listeners.forEach((fn) => 
-                  fn({
-                    action: "visualizeFlag",
-                    handle: msg.handle,
-                    flag: flag,
-                    location: location,
-                  })
-                );
+                const update = {
+                  action: "visualizeFlag",
+                  handle: msg.handle,
+                  flag: flag,
+                  location: location,
+                };
+                listeners.forEach((fn) => fn(update));
               }, 100);
             }
           },
@@ -63,6 +62,18 @@ test("realistic extension simulation on realKalos account", async ({
       (window as any).chrome.runtime.onMessage = {
         addListener: (fn: any) => listeners.push(fn),
       };
+
+      // Handle the private channel handshake in the test mock
+      window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "__INITIAL_STATE__" && event.ports[0]) {
+           const port = event.ports[0];
+           port.onmessage = (e: any) => {
+              if (e.data.type === "__DATA_LAYER_SYNC__") {
+                 window.chrome.runtime.sendMessage(e.data);
+              }
+           };
+        }
+      });
     },
     {
       location: "Eastern Europe (Non-EU)",

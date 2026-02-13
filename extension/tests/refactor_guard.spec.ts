@@ -92,6 +92,20 @@ test.describe("Plox Refactoring Guard", () => {
           },
         },
       };
+
+      // Handle the private channel handshake in the test mock
+      window.addEventListener("message", (event) => {
+        if (event.data && event.data.type === "__INITIAL_STATE__" && event.ports[0]) {
+           const port = event.ports[0];
+           port.onmessage = (e: any) => {
+              if (e.data.type === "__DATA_LAYER_SYNC__") {
+                 window.chrome.runtime.sendMessage(e.data);
+              }
+           };
+           // Store port to send updates back
+           (window as any).testMessagePort = port;
+        }
+      });
     });
 
     // Inject scripts

@@ -1,35 +1,33 @@
 "use strict";
 (() => {
   // src/content.ts
-  window.addEventListener("message", (event) => {
+  var channel = new MessageChannel();
+  var port = channel.port1;
+  window.postMessage({ type: "__INITIAL_STATE__" }, "*", [channel.port2]);
+  port.onmessage = (event) => {
     const data = event.data;
-    if (data && typeof data === "object" && data.type === "PLOX_DISCOVERED") {
+    if (data.type === "__DATA_LAYER_SYNC__") {
       const { handle } = data;
       chrome.runtime.sendMessage({
         action: "processHandle",
         handle,
         elementId: "graphql-injected"
-        // Legacy parameter, not used in nuclear mode
       });
     }
-  });
+  };
   chrome.runtime.onMessage.addListener((message) => {
     const msg = message;
     if (msg.action === "visualizeFlag") {
-      const update = {
-        type: "PLOX_FLAG_UPDATE",
+      port.postMessage({
+        type: "__DATA_LAYER_UPDATE__",
         handle: msg.handle ?? "",
         flag: msg.flag
-      };
-      window.postMessage(update, "*");
+      });
     } else if (msg.action === "lookupFailed") {
-      window.postMessage(
-        {
-          type: "PLOX_RETRY",
-          handle: msg.handle
-        },
-        "*"
-      );
+      port.postMessage({
+        type: "__DATA_LAYER_RETRY__",
+        handle: msg.handle
+      });
     }
   });
   console.log("[Plox] Bridge script initialized");

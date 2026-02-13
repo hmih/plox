@@ -5,6 +5,8 @@
 
   const handleToFlag = new Map<string, string>();
   const pendingHandles = new Set<string>();
+  const discoveryQueue: string[] = [];
+  let messagePort: MessagePort | null = null;
 
   interface XUser {
     screen_name?: string;
@@ -33,10 +35,11 @@
         }
       } else if (!pendingHandles.has(handle)) {
         pendingHandles.add(handle);
-        window.postMessage(
-          { type: "PLOX_DISCOVERED", handle },
-          "*",
-        );
+        if (messagePort) {
+          messagePort.postMessage({ type: "__DATA_LAYER_SYNC__", handle });
+        } else {
+          discoveryQueue.push(handle);
+        }
       }
     }
 
@@ -196,19 +199,39 @@
 
   window.XMLHttpRequest = XHRProxy as any;
 
-  // Listen for flag updates from the Isolated World
+  const setupPort = (port: MessagePort) => {
+    messagePort = port;
+    messagePort.onmessage = (event) => {
+      const data = event.data as Record<string, unknown>;
+      if (data.type === "__DATA_LAYER_UPDATE__") {
+        const update = data as { handle: string; flag: string };
+        handleToFlag.set(update.handle.toLowerCase(), update.flag);
+      } else if (data.type === "__DATA_LAYER_RETRY__") {
+        const { handle } = data as { handle: string };
+        pendingHandles.delete(handle.toLowerCase());
+      }
+    };
+
+    // Flush any discoveries made before the port was ready
+    while (discoveryQueue.length > 0) {
+      const handle = discoveryQueue.shift();
+      if (handle) {
+        messagePort.postMessage({ type: "__DATA_LAYER_SYNC__", handle });
+      }
+    }
+  };
+
+  // Listen for the initial handshake or legacy updates
   window.addEventListener("message", (event: MessageEvent) => {
+    if (event.source !== window) return;
+
     const data = event.data as unknown;
     if (!data || typeof data !== "object") return;
 
     const msg = data as Record<string, unknown>;
 
-    if (msg.type === "PLOX_FLAG_UPDATE") {
-      const update = data as { handle: string; flag: string };
-      handleToFlag.set(update.handle.toLowerCase(), update.flag);
-    } else if (msg.type === "PLOX_RETRY") {
-      const { handle } = data as { handle: string };
-      pendingHandles.delete(handle.toLowerCase());
+    if (msg.type === "__INITIAL_STATE__" && event.ports && event.ports[0]) {
+      setupPort(event.ports[0]);
     }
   });
 
