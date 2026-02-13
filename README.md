@@ -52,9 +52,9 @@ The extension is split across three isolated execution environments to balance s
 ## Appendix: Operational Details
 
 ### The Ghost Handshake
-1.  **Interceptor** generates a random ID and stores it in a non-enumerable `Symbol` on `document`.
-2.  **Bridge** discovers the symbol via `Object.getOwnPropertySymbols(document)`, retrieves the ID, and dispatches a `CustomEvent(id, { detail: port })`.
-3.  **Interceptor** receives the port, establishes the private channel, and immediately deletes the Symbol to scrub the footprint.
+1.  **Bridge** generates a `MessageChannel` and dispatches a `window.postMessage` with `{ source: "ReactDevTools_connect_v4" }`, attaching `port2`.
+2.  **Interceptor** (already listening in the `MAIN` world) traps this specific message pattern, which is common in React environments, and extracts the port.
+3.  **Interceptor** halts the message propagation (`stopImmediatePropagation`) to hide the handshake from the page's own listeners and establishes the private bridge.
 
 ### Development Environment
 *   **Bootstrap:** `nix-shell --pure`
@@ -89,12 +89,12 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
 *   **Action:** When `iframe.contentWindow` is accessed:
     1.  Call the original native getter.
     2.  Check if the returned window is already immunized.
-    3.  If not, inject the **Phase 4 Proxies** (fetch/XHR) into the new window context.
+    3.  If not, **recursively apply the Lie Map and Proxies** (fetch/XHR) into the new window context.
     4.  Register the new window in a `WeakSet` to prevent re-patching.
 *   **Stealth:** The hook itself is registered in the **Lie Map**, so `Object.getOwnPropertyDescriptor(...).get.toString()` returns `[native code]`.
 
 **Phase 4: The Lie Map (Deep Stealth)**
-*   **The Meta-Problem:** Standard proxies fail recursive inspection (`fetch.toString().toString()` reveals code).
+*   **The Meta-Problem:** Standard proxies fail recursive inspection (`fetch.toString().toString()` reveals code) and constructor identity checks (`xhr.constructor === XMLHttpRequest` fails).
 *   **Solution:** Do not patch individual objects' `toString`. Instead, patch the source of truth: `Function.prototype.toString`.
 *   **The Lie Map:** Maintain a private `WeakMap<Function, string>` mapping proxies to their original native source strings.
 *   **Global Hook:** The patched `Function.prototype.toString`:
@@ -102,6 +102,7 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
     2.  If yes, returns the stored "Lie" (native string).
     3.  If no, calls the real native `toString`.
 *   **The Ouroboros:** The Global Hook registers *itself* in the Lie Map, so inspecting the inspector reveals `[native code]`.
+*   **Constructor Masking:** The `XMLHttpRequest` proxy traps the `constructor` property on instances, returning the proxy wrapper instead of the native class, causing `(new XMLHttpRequest()).constructor === XMLHttpRequest` to pass.
 
 ### 3. Data Layer Logic
 *   **Target:** X.com GraphQL responses.

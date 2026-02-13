@@ -34,14 +34,16 @@ import { GhostCmd, log } from "./core";
     Function_prototype_apply: Function.prototype.apply,
     Function_prototype_bind: Function.prototype.bind,
     Function_prototype_toString: Function.prototype.toString,
-    EventTarget_prototype_addEventListener: EventTarget.prototype.addEventListener,
+    EventTarget_prototype_addEventListener:
+      EventTarget.prototype.addEventListener,
     EventTarget_prototype_dispatchEvent: EventTarget.prototype.dispatchEvent,
     MessagePort_prototype_postMessage: MessagePort.prototype.postMessage,
     Document_prototype_createElement: Document.prototype.createElement,
-    HTMLIFrameElement_prototype_contentWindow_get: Object.getOwnPropertyDescriptor(
-      window.HTMLIFrameElement.prototype,
-      "contentWindow",
-    )?.get,
+    HTMLIFrameElement_prototype_contentWindow_get:
+      Object.getOwnPropertyDescriptor(
+        window.HTMLIFrameElement.prototype,
+        "contentWindow",
+      )?.get,
   };
 
   // Safe execution helpers using captured natives
@@ -58,51 +60,25 @@ import { GhostCmd, log } from "./core";
    * we maintain a global map of "lies" and patch the source of truth: Function.prototype.toString.
    */
   const lies = new Native.WeakMap<any, string>();
-
-  // Capture the original toString BEFORE we hook it
-  const originalToString = Native.Function_prototype_toString;
-
-  // The Ouroboros Hook: Patch Function.prototype.toString
-  // This is the most critical stealth component. It must never fail.
-  const toStringProxy = new Native.Proxy(originalToString, {
-    apply: (target, thisArg, args) => {
-      // 1. Check if the object has a registered lie
-      try {
-        if (thisArg && lies.has(thisArg)) {
-            return lies.get(thisArg);
-        }
-      } catch (e) {
-        // Fail-open: If WeakMap lookup fails (e.g. primitive), ignore.
-      }
-      
-      // 2. Fallback to native behavior
-      return safeCall(target, thisArg, ...args);
-    }
-  });
-
-  // Self-masking: The hook itself must report as native code
-  lies.set(toStringProxy, safeCall(originalToString, originalToString));
-  
-  // Apply the global hook
-  Function.prototype.toString = toStringProxy;
+  const proxiedWindows = new Native.WeakSet<any>();
 
   /**
    * Helper to copy descriptors and register a lie.
    */
   function harden(proxy: any, original: any) {
-    const descriptors = Native.Object_getOwnPropertyDescriptor(original, "prototype");
-    if (descriptors) {
-        Native.Object_defineProperty(proxy, "prototype", descriptors);
-    }
-    
-    const descriptor = Native.Object_getOwnPropertyDescriptor(
+    const descriptors = Native.Object_getOwnPropertyDescriptor(
       original,
-      "name",
+      "prototype",
     );
+    if (descriptors) {
+      Native.Object_defineProperty(proxy, "prototype", descriptors);
+    }
+
+    const descriptor = Native.Object_getOwnPropertyDescriptor(original, "name");
     if (descriptor) {
       Native.Object_defineProperty(proxy, "name", descriptor);
     }
-    
+
     const lenDescriptor = Native.Object_getOwnPropertyDescriptor(
       original,
       "length",
@@ -112,14 +88,15 @@ import { GhostCmd, log } from "./core";
     }
 
     // Register the lie instead of defining a property
-    lies.set(proxy, safeCall(originalToString, original));
+    // We use the MAIN WORLD'S originalToString to generate the lie string
+    // This assumes all realms return "function name() { [native code] }" which is standard.
+    lies.set(proxy, safeCall(Native.Function_prototype_toString, original));
   }
 
   // --- Core Logic ---
 
   const handleToFlag = new Native.Map<string, string>();
   const pendingHandles = new Native.Set<string>();
-  const proxiedWindows = new Native.WeakSet<any>();
   const discoveryQueue: string[] = [];
   let messagePort: MessagePort | null = null;
 
@@ -186,11 +163,15 @@ import { GhostCmd, log } from "./core";
     return modified;
   }
 
-  // --- Network Proxies ---
+  // --- Factories ---
 
   function createFetchProxy(originalFetch: typeof fetch): typeof fetch {
     const proxy = new Native.Proxy(originalFetch, {
-      apply: async (target, thisArg, args: [RequestInfo | URL, RequestInit?]) => {
+      apply: async (
+        target,
+        thisArg,
+        args: [RequestInfo | URL, RequestInit?],
+      ) => {
         const input = args[0];
         const url =
           typeof input === "string"
@@ -198,15 +179,20 @@ import { GhostCmd, log } from "./core";
             : input instanceof URL
               ? input.href
               : (input as Request).url;
-  
+
         const isGraphQL = url && url.includes("/i/api/graphql/");
-  
+
+        // We use Native.Reflect to ensure we don't trip any user-land hooks
         if (!isGraphQL) {
-          return Native.Reflect.apply(target, Native.window, args);
+          return Native.Reflect.apply(target, thisArg, args);
         }
-  
-        const response: Response = await Native.Reflect.apply(target, Native.window, args);
-  
+
+        const response: Response = await Native.Reflect.apply(
+          target,
+          thisArg,
+          args,
+        );
+
         const createResponseProxy = (res: Response): Response => {
           return new Native.Proxy(res, {
             get(target, prop, receiver) {
@@ -226,7 +212,7 @@ import { GhostCmd, log } from "./core";
                 harden(hooked, original);
                 return hooked;
               }
-  
+
               if (prop === "clone") {
                 const original = target.clone;
                 const hooked = function () {
@@ -235,7 +221,7 @@ import { GhostCmd, log } from "./core";
                 harden(hooked, original);
                 return hooked;
               }
-  
+
               const value = Native.Reflect.get(target, prop, receiver);
               if (typeof value === "function") {
                 return safeCall(Native.Function_prototype_bind, value, target);
@@ -244,118 +230,178 @@ import { GhostCmd, log } from "./core";
             },
           });
         };
-  
+
         return createResponseProxy(response);
       },
     });
     harden(proxy, originalFetch);
-    
-    // Fix name (it becomes "bound fetch" because of the bind)
+
+    // Fix name (it becomes "bound fetch" because of the bind if it was bound)
+    // We enforce "fetch"
     Native.Object_defineProperty(proxy, "name", {
-        value: "fetch",
-        writable: false,
-        enumerable: false,
-        configurable: true
+      value: "fetch",
+      writable: false,
+      enumerable: false,
+      configurable: true,
     });
-    
+
     return proxy;
   }
 
-  const fetchProxy = createFetchProxy(Native.fetch);
-  window.fetch = fetchProxy;
+  function createXHRProxy(
+    originalXHR: typeof XMLHttpRequest,
+  ): typeof XMLHttpRequest {
+    const proxy = new Native.Proxy(originalXHR, {
+      construct(target, args: any[]) {
+        const xhr = new target(...args);
+        const originalOpen = xhr.open;
+        const originalSend = xhr.send;
+        let isGraphQL = false;
 
-  // --- XHR Proxy ---
-
-  const XHRProxy = new Native.Proxy(Native.XMLHttpRequest, {
-    construct(target, args: any[]) {
-      const xhr = new target(...args);
-      const originalOpen = xhr.open;
-      const originalSend = xhr.send;
-      let isGraphQL = false;
-
-      const openWrapper = function (method: string, url: string | URL) {
-        const urlStr = typeof url === "string" ? url : url.toString();
-        if (urlStr.includes("/i/api/graphql/")) {
-          isGraphQL = true;
-        }
-        return safeApply(originalOpen, xhr, arguments as any);
-      };
-
-      const sendWrapper = function () {
-        if (isGraphQL) {
-          const originalOnReadyStateChange = xhr.onreadystatechange;
-          xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4 && xhr.status === 200) {
-              try {
-                const json = safeJSONParse(xhr.responseText);
-                if (patchUserObjects(json)) {
-                  Native.Object_defineProperty(xhr, "responseText", {
-                    value: safeJSONStringify(json),
-                    configurable: true,
-                  });
-                  Native.Object_defineProperty(xhr, "response", {
-                    value: json,
-                    configurable: true,
-                  });
-                }
-              } catch (e) {}
-            }
-            if (originalOnReadyStateChange) {
-              return safeApply(originalOnReadyStateChange, this, arguments as any);
-            }
-          };
-        }
-        return safeApply(originalSend, xhr, arguments as any);
-      };
-      
-      // Register lies
-      lies.set(openWrapper, safeCall(originalToString, originalOpen));
-      lies.set(sendWrapper, safeCall(originalToString, originalSend));
-
-      // Return a Proxy to hide our overrides from hasOwnProperty checks
-      return new Native.Proxy(xhr, {
-          get(target, prop, receiver) {
-              if (prop === "open") return openWrapper;
-              if (prop === "send") return sendWrapper;
-              return Native.Reflect.get(target, prop, receiver);
+        const openWrapper = function (method: string, url: string | URL) {
+          const urlStr = typeof url === "string" ? url : url.toString();
+          if (urlStr.includes("/i/api/graphql/")) {
+            isGraphQL = true;
           }
+          return safeApply(originalOpen, xhr, arguments as any);
+        };
+        harden(openWrapper, originalOpen);
+
+        const sendWrapper = function () {
+          if (isGraphQL) {
+            const originalOnReadyStateChange = xhr.onreadystatechange;
+            xhr.onreadystatechange = function () {
+              if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                  const json = safeJSONParse(xhr.responseText);
+                  if (patchUserObjects(json)) {
+                    Native.Object_defineProperty(xhr, "responseText", {
+                      value: safeJSONStringify(json),
+                      configurable: true,
+                    });
+                    Native.Object_defineProperty(xhr, "response", {
+                      value: json,
+                      configurable: true,
+                    });
+                  }
+                } catch (e) {}
+              }
+              if (originalOnReadyStateChange) {
+                return safeApply(
+                  originalOnReadyStateChange,
+                  this,
+                  arguments as any,
+                );
+              }
+            };
+          }
+          return safeApply(originalSend, xhr, arguments as any);
+        };
+        harden(sendWrapper, originalSend);
+
+        // Return a Proxy to hide our overrides from hasOwnProperty checks AND CONSTRUCTOR CHECKS
+        const instanceProxy = new Native.Proxy(xhr, {
+          get(target, prop, receiver) {
+            if (prop === "open") return openWrapper;
+            if (prop === "send") return sendWrapper;
+
+            // STEALTH FIX: Hide the fact that this is a Proxy wrapper
+            // When user asks for .constructor, give them the wrapper class (XHRProxy),
+            // not the underlying native XMLHttpRequest which would betray the deception.
+            if (prop === "constructor") return proxy;
+
+            return Native.Reflect.get(target, prop, receiver);
+          },
+        });
+
+        return instanceProxy;
+      },
+    });
+    harden(proxy, originalXHR);
+    return proxy;
+  }
+
+  /**
+   * Applies all stealth measures to a specific window/realm.
+   * Can be called on the main window or any iframe contentWindow.
+   */
+  function applyStealth(win: any) {
+    if (!win || proxiedWindows.has(win)) return;
+    proxiedWindows.add(win);
+
+    try {
+      // 1. Ouroboros: Hook Function.prototype.toString
+      // We must hook the SPECIFIC prototype of the realm
+      const winFunctionProto = win.Function.prototype;
+      const winOriginalToString = winFunctionProto.toString;
+
+      const toStringProxy = new Native.Proxy(winOriginalToString, {
+        apply: (target, thisArg, args) => {
+          // 1. Check if the object has a registered lie
+          try {
+            if (thisArg && lies.has(thisArg)) {
+              return lies.get(thisArg);
+            }
+          } catch (e) {
+            // Fail-open
+          }
+
+          // 2. Fallback to native behavior
+          return safeCall(target, thisArg, ...args);
+        },
       });
-    },
-  });
-  harden(XHRProxy, Native.XMLHttpRequest);
-  window.XMLHttpRequest = XHRProxy as any;
+
+      // Register the lie for the hook itself
+      lies.set(
+        toStringProxy,
+        safeCall(winOriginalToString, winOriginalToString),
+      );
+
+      // Apply the hook
+      winFunctionProto.toString = toStringProxy;
+
+      // 2. Patch Fetch
+      if (win.fetch) {
+        win.fetch = createFetchProxy(win.fetch);
+      }
+
+      // 3. Patch XHR
+      if (win.XMLHttpRequest) {
+        win.XMLHttpRequest = createXHRProxy(win.XMLHttpRequest);
+      }
+    } catch (e) {
+      // Ignore errors in restricted contexts (e.g. cross-origin iframes)
+    }
+  }
+
+  // --- Iframe Immunization ---
 
   /**
    * NUCLEAR STEALTH PHASE 3: IFRAME IMMUNIZATION
    * Hook into the prototype of HTMLIFrameElement to capture contentWindow access.
-   * This avoids proxying the DOM element itself, which causes "Illegal invocation" errors.
    */
   const iframeProto = Native.window.HTMLIFrameElement.prototype;
   if (Native.HTMLIFrameElement_prototype_contentWindow_get) {
     const originalGetter = Native.HTMLIFrameElement_prototype_contentWindow_get;
     const getterProxy = function () {
-        const win = safeCall(originalGetter, this);
-        if (win && !proxiedWindows.has(win)) {
-          proxiedWindows.add(win);
-          try {
-            win.fetch = createFetchProxy(win.fetch);
-          } catch (e) {
-            // Ignore errors in restricted contexts
-          }
-        }
-        return win;
+      const win = safeCall(originalGetter, this);
+      if (win) {
+        applyStealth(win);
+      }
+      return win;
     };
-    
-    // Fix name to match native getter "get contentWindow"
+
     Native.Object_defineProperty(getterProxy, "name", {
-        value: "get contentWindow",
-        writable: false,
-        enumerable: false,
-        configurable: true
+      value: "get contentWindow",
+      writable: false,
+      enumerable: false,
+      configurable: true,
     });
-    
-    // Register the lie for our getter
-    lies.set(getterProxy, safeCall(originalToString, originalGetter));
+
+    lies.set(
+      getterProxy,
+      safeCall(Native.Function_prototype_toString, originalGetter),
+    );
 
     Native.Object_defineProperty(iframeProto, "contentWindow", {
       get: getterProxy,
@@ -364,6 +410,10 @@ import { GhostCmd, log } from "./core";
     });
   }
 
+  // --- Initialization ---
+
+  // Apply stealth to the main window immediately
+  applyStealth(Native.window);
 
   // --- Port Setup ---
 
@@ -393,22 +443,26 @@ import { GhostCmd, log } from "./core";
 
   /**
    * NUCLEAR STEALTH PHASE 2: EVENT-BASED HANDSHAKE
-   * Camouflaged as a generic React internal message to avoid flagging.
    */
-  const HANDSHAKE_REQ = "ReactDevTools_connect_v4"; // Common enough to be ignored
+  const HANDSHAKE_REQ = "ReactDevTools_connect_v4";
 
   const onHandshake = (event: Event) => {
-      const e = event as MessageEvent;
-      if (e.data && e.data.source === HANDSHAKE_REQ) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-          const port = e.ports[0];
-          if (port) {
-              setupPort(port);
-          }
+    const e = event as MessageEvent;
+    if (e.data && e.data.source === HANDSHAKE_REQ) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      const port = e.ports[0];
+      if (port) {
+        setupPort(port);
       }
+    }
   };
 
-  // Add the listener using the native, secured prototype
-  safeCall(Native.EventTarget_prototype_addEventListener, window, "message", onHandshake, true);
+  safeCall(
+    Native.EventTarget_prototype_addEventListener,
+    window,
+    "message",
+    onHandshake,
+    true,
+  );
 })();

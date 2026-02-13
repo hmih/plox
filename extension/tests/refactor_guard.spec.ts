@@ -9,9 +9,10 @@ test.describe("Plox Refactoring Guard", () => {
   let interceptorJs: string;
 
   test.beforeAll(() => {
-    const distDir = process.env.PRODUCTION === "true" ? "dist/prod" : "dist/dev";
+    const distDir =
+      process.env.PRODUCTION === "true" ? "dist/prod" : "dist/dev";
     console.log(`[TEST] Using distribution: ${distDir}`);
-    
+
     contentJs = fs.readFileSync(
       path.join(__dirname, `../${distDir}/content.js`),
       "utf8",
@@ -73,7 +74,7 @@ test.describe("Plox Refactoring Guard", () => {
     await page.evaluate(() => {
       const listeners: any[] = [];
       const storage: Record<string, any> = {};
-      
+
       try {
         // @ts-ignore
         delete window.chrome;
@@ -85,7 +86,8 @@ test.describe("Plox Refactoring Guard", () => {
             addListener: (fn: any) => listeners.push(fn),
           },
           sendMessage: async (msg: any) => {
-            if (msg.action === 4) { // BusCmd.PROCESS
+            if (msg.action === 4) {
+              // BusCmd.PROCESS
               const resp = await fetch(
                 `https://plox.krepost.xy/met?username=${msg.handle}`,
               );
@@ -123,10 +125,10 @@ test.describe("Plox Refactoring Guard", () => {
         },
       };
 
-      Object.defineProperty(window, 'chrome', {
+      Object.defineProperty(window, "chrome", {
         value: mockChrome,
         writable: true,
-        configurable: true
+        configurable: true,
       });
     });
 

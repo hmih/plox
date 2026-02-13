@@ -1,16 +1,16 @@
 // GHOST Protocol: Interceptor <-> Bridge (Private Channel)
 // Using obfuscated integer codes to blend in with generic minified traffic
 export const GhostCmd = {
-  SYNC: 201,   // was 0
+  SYNC: 201, // was 0
   UPDATE: 202, // was 1
-  RETRY: 204,  // was 2
+  RETRY: 204, // was 2
 } as const;
 
 // BUS Protocol: Bridge <-> Background (Chrome Runtime)
 export const BusCmd = {
   PROCESS: 401, // was 4
-  UPDATE: 402,  // was 5
-  RETRY: 406,   // was 6
+  UPDATE: 402, // was 5
+  RETRY: 406, // was 6
 } as const;
 
 // Build-time definition for development mode

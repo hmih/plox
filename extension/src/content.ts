@@ -52,15 +52,19 @@ const setupBridge = (port: MessagePort) => {
 
 const initHandshake = () => {
   const channel = new MessageChannel();
-  
+
   // Bridge Setup
   setupBridge(channel.port1);
 
   // Execute Handshake
   // Camouflaged as React DevTools connection
-  window.postMessage({
-      source: "ReactDevTools_connect_v4"
-  }, "*", [channel.port2]);
+  window.postMessage(
+    {
+      source: "ReactDevTools_connect_v4",
+    },
+    "*",
+    [channel.port2],
+  );
 };
 
 initHandshake();

@@ -36,7 +36,7 @@ test("realistic extension simulation on realKalos account", async ({
     ({ location, flag }: { location: string; flag: string }) => {
       const listeners: any[] = [];
       const storage: Record<string, any> = {};
-      
+
       // Force overwrite of chrome object
       try {
         // @ts-ignore
@@ -65,7 +65,7 @@ test("realistic extension simulation on realKalos account", async ({
           },
           onMessage: {
             addListener: (fn: any) => listeners.push(fn),
-          }
+          },
         },
         storage: {
           local: {
@@ -83,10 +83,10 @@ test("realistic extension simulation on realKalos account", async ({
         },
       };
 
-      Object.defineProperty(window, 'chrome', {
+      Object.defineProperty(window, "chrome", {
         value: mockChrome,
         writable: true,
-        configurable: true
+        configurable: true,
       });
     },
     {
