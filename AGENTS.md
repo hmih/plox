@@ -35,6 +35,12 @@ Plox uses **Nuclear Stealth**. Violation of these rules is a critical failure.
 
 ## Operational Workflow
 
+### Documentation Synchronization Mandate (CRITICAL)
+The `README.md` serves as a "Living Manifest." Agents must strictly adhere to this sync protocol:
+1.  **Code Change:** If you modify `interceptor.ts`, `content.ts`, or backend logic, you MUST update the human-readable summary in `README.md`.
+2.  **Blueprint Update:** If you alter the *architecture* (e.g., changing the handshake mechanism or proxy strategy), you MUST update the **God Prompt Appendix** in `README.md`.
+3.  **Verification:** Before closing a session, verify that the God Prompt accurately describes the *logic* of the current implementation, allowing a fresh LLM to reconstruct the system from the prompt alone.
+
 ### Interceptor Development (`MAIN` World)
 - **Recursive Patching:** Maintain the `patchUserObjects` recursion list. Ensure common GraphQL keys like `data`, `user`, and `legacy` are covered.
 - **In-Place Modification:** Modify JSON objects in-place to minimize detection via memory/timing analysis.
