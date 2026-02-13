@@ -4,7 +4,8 @@
   var Cmd = {
     SYNC: 0,
     UPDATE: 1,
-    RETRY: 2
+    RETRY: 2,
+    PROCESS: 3
   };
   var setupBridge = (port) => {
     port.onmessage = (event) => {
@@ -22,7 +23,7 @@
               });
             } else {
               chrome.runtime.sendMessage({
-                action: "processHandle",
+                action: Cmd.PROCESS,
                 handle,
                 elementId: "graphql-injected"
               });
@@ -32,13 +33,13 @@
       }
     };
     chrome.runtime.onMessage.addListener((message) => {
-      if (message.action === "visualizeFlag") {
+      if (message.action === Cmd.UPDATE) {
         port.postMessage({
           type: Cmd.UPDATE,
           handle: message.handle ?? "",
           flag: message.flag
         });
-      } else if (message.action === "lookupFailed") {
+      } else if (message.action === Cmd.RETRY) {
         port.postMessage({
           type: Cmd.RETRY,
           handle: message.handle

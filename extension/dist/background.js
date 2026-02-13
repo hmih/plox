@@ -43,7 +43,8 @@
     const cached = cache.get(handle);
     if (cached) {
       chrome.tabs.sendMessage(tabId, {
-        action: "visualizeFlag",
+        action: 1,
+        // visualizeFlag
         handle,
         elementId,
         flag: cached.flag,
@@ -68,7 +69,8 @@
         cache.set(handle, entry);
         chrome.storage.local.set({ [`cache:${handle}`]: entry });
         chrome.tabs.sendMessage(tabId, {
-          action: "visualizeFlag",
+          action: 1,
+          // visualizeFlag
           handle,
           elementId,
           flag,
@@ -77,7 +79,8 @@
       }
     } catch (err) {
       chrome.tabs.sendMessage(tabId, {
-        action: "lookupFailed",
+        action: 2,
+        // lookupFailed
         handle
       });
     } finally {
@@ -87,7 +90,7 @@
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener(
       (request, sender) => {
-        if (request.action !== "processHandle") return;
+        if (request.action !== 3) return;
         if (!sender.tab?.id) {
           return;
         }

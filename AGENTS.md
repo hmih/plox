@@ -84,3 +84,4 @@ Run these in the browser console during development:
 - `0` (SYNC): Discovery relay.
 - `1` (UPDATE): Injection update.
 - `2` (RETRY): Recovery trigger.
+- `3` (PROCESS): Background lookup request.

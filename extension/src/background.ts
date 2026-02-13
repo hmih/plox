@@ -12,6 +12,11 @@ export const cache = new Map<
 >();
 export const pending = new Set<string>();
 
+// Opaque Protocol:
+// 1 = UPDATE (visualizeFlag)
+// 2 = RETRY (lookupFailed)
+// 3 = PROCESS (processHandle)
+
 export const performInvestigation = async (
   handle: string,
   tabId: number,
@@ -20,7 +25,7 @@ export const performInvestigation = async (
   const cached = cache.get(handle);
   if (cached) {
     chrome.tabs.sendMessage(tabId, {
-      action: "visualizeFlag",
+      action: 1, // visualizeFlag
       handle,
       elementId,
       flag: cached.flag,
@@ -61,7 +66,7 @@ export const performInvestigation = async (
       chrome.storage.local.set({ [`cache:${handle}`]: entry });
 
       chrome.tabs.sendMessage(tabId, {
-        action: "visualizeFlag",
+        action: 1, // visualizeFlag
         handle,
         elementId,
         flag,
@@ -70,7 +75,7 @@ export const performInvestigation = async (
     }
   } catch (err) {
     chrome.tabs.sendMessage(tabId, {
-      action: "lookupFailed",
+      action: 2, // lookupFailed
       handle,
     });
   } finally {
@@ -79,7 +84,7 @@ export const performInvestigation = async (
 };
 
 interface PloxMessage {
-  action: string;
+  action: number;
   handle: string;
   elementId: string;
 }
@@ -91,7 +96,7 @@ if (
 ) {
   chrome.runtime.onMessage.addListener(
     (request: PloxMessage, sender: chrome.runtime.MessageSender) => {
-      if (request.action !== "processHandle") return;
+      if (request.action !== 3) return; // processHandle
       if (!sender.tab?.id) {
         return;
       }

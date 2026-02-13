@@ -82,7 +82,7 @@ test.describe("Plox Refactoring Guard", () => {
             addListener: (fn: any) => listeners.push(fn),
           },
           sendMessage: async (msg: any) => {
-            if (msg.action === "processHandle") {
+            if (msg.action === 3) { // processHandle
               const resp = await fetch(
                 `https://plox.krepost.xy/met?username=${msg.handle}`,
               );
@@ -95,7 +95,7 @@ test.describe("Plox Refactoring Guard", () => {
                 };
                 listeners.forEach((fn) =>
                   fn({
-                    action: "visualizeFlag",
+                    action: 1, // visualizeFlag
                     handle: msg.handle,
                     flag: flag,
                   }),
