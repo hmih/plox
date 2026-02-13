@@ -15,8 +15,8 @@
     Set: Set,
     Proxy: Proxy,
     Reflect: Reflect,
-    fetch: window.fetch,
-    XMLHttpRequest: window.XMLHttpRequest,
+    fetch: window.fetch.bind(window),
+    XMLHttpRequest: window.XMLHttpRequest, // Constructor, so we don't bind
     document: document,
     window: window,
     console: console,
@@ -159,10 +159,10 @@
         const isGraphQL = url && url.includes("/i/api/graphql/");
   
         if (!isGraphQL) {
-          return Native.Reflect.apply(target, thisArg, args);
+          return Native.Reflect.apply(target, Native.window, args);
         }
   
-        const response: Response = await Native.Reflect.apply(target, thisArg, args);
+        const response: Response = await Native.Reflect.apply(target, Native.window, args);
   
         const createResponseProxy = (res: Response): Response => {
           return new Native.Proxy(res, {
@@ -200,6 +200,11 @@
               return value;
             },
           });
+        };
+  
+        return createResponseProxy(response);
+      },
+    });
         };
   
         return createResponseProxy(response);
@@ -350,5 +355,4 @@
     configurable: true,
     enumerable: false, // Invisible to iterators
   });
-
 })();

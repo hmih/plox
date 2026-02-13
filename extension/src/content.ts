@@ -8,22 +8,24 @@ const setupBridge = (port: MessagePort) => {
       const { handle } = data as { handle: string };
 
       // Stealth Caching: Check storage before messaging background
-      chrome.storage.local.get([`cache:${handle}`], (result) => {
-        const cached = result[`cache:${handle}`];
-        if (cached) {
-          port.postMessage({
-            type: "__DATA_LAYER_UPDATE__",
-            handle,
-            flag: cached.flag,
-          });
-        } else {
-          chrome.runtime.sendMessage({
-            action: "processHandle",
-            handle,
-            elementId: "graphql-injected",
-          });
-        }
-      });
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        chrome.storage.local.get([`cache:${handle}`], (result) => {
+          const cached = result[`cache:${handle}`];
+          if (cached) {
+            port.postMessage({
+              type: "__DATA_LAYER_UPDATE__",
+              handle,
+              flag: cached.flag,
+            });
+          } else {
+            chrome.runtime.sendMessage({
+              action: "processHandle",
+              handle,
+              elementId: "graphql-injected",
+            });
+          }
+        });
+      }
     }
   };
 
@@ -47,7 +49,7 @@ const checkHandshake = () => {
   // Scan for the handshake symbol using Object.getOwnPropertySymbols
   // This bypasses DOM attributes and event listeners entirely
   const syms = Object.getOwnPropertySymbols(document);
-  const handshakeSym = syms.find(s => s.toString() === "Symbol(x-compat-handshake)");
+  const handshakeSym = syms.find(s => s.description === "x-compat-handshake" || s.toString().includes("x-compat-handshake"));
   
   if (handshakeSym) {
     // Accessing the property triggers the Interceptor's 'get' trap

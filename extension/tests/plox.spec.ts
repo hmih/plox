@@ -36,7 +36,14 @@ test("realistic extension simulation on realKalos account", async ({
     ({ location, flag }: { location: string; flag: string }) => {
       const listeners: any[] = [];
       const storage: Record<string, any> = {};
-      (window as any).chrome = {
+      
+      // Force overwrite of chrome object
+      try {
+        // @ts-ignore
+        delete window.chrome;
+      } catch (e) {}
+
+      const mockChrome = {
         runtime: {
           sendMessage: async (msg: any) => {
             console.log("[Test Mock] Content script sent message:", msg);
@@ -56,6 +63,9 @@ test("realistic extension simulation on realKalos account", async ({
               }, 100);
             }
           },
+          onMessage: {
+            addListener: (fn: any) => listeners.push(fn),
+          }
         },
         storage: {
           local: {
@@ -73,9 +83,11 @@ test("realistic extension simulation on realKalos account", async ({
         },
       };
 
-      (window as any).chrome.runtime.onMessage = {
-        addListener: (fn: any) => listeners.push(fn),
-      };
+      Object.defineProperty(window, 'chrome', {
+        value: mockChrome,
+        writable: true,
+        configurable: true
+      });
     },
     {
       location: "Eastern Europe (Non-EU)",
@@ -114,7 +126,8 @@ test("realistic extension simulation on realKalos account", async ({
   });
 
   await page.evaluate(async () => {
-    await fetch("https://x.com/i/api/graphql/User");
+    const resp = await fetch("https://x.com/i/api/graphql/User");
+    await resp.json(); // Consume to trigger interceptor
   });
 
   await page.waitForTimeout(500);
