@@ -95,12 +95,13 @@ test("realistic extension simulation on realKalos account", async ({
     },
   );
 
+  const distDir = process.env.PRODUCTION === "true" ? "dist/prod" : "dist/dev";
   const interceptorJs = fs.readFileSync(
-    path.join(__dirname, "../dist/interceptor.js"),
+    path.join(__dirname, `../${distDir}/interceptor.js`),
     "utf8",
   );
   const contentJs = fs.readFileSync(
-    path.join(__dirname, "../dist/content.js"),
+    path.join(__dirname, `../${distDir}/content.js`),
     "utf8",
   );
   await page.addScriptTag({ content: interceptorJs });

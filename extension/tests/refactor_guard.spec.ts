@@ -9,16 +9,19 @@ test.describe("Plox Refactoring Guard", () => {
   let interceptorJs: string;
 
   test.beforeAll(() => {
+    const distDir = process.env.PRODUCTION === "true" ? "dist/prod" : "dist/dev";
+    console.log(`[TEST] Using distribution: ${distDir}`);
+    
     contentJs = fs.readFileSync(
-      path.join(__dirname, "../dist/content.js"),
+      path.join(__dirname, `../${distDir}/content.js`),
       "utf8",
     );
     backgroundJs = fs.readFileSync(
-      path.join(__dirname, "../dist/background.js"),
+      path.join(__dirname, `../${distDir}/background.js`),
       "utf8",
     );
     interceptorJs = fs.readFileSync(
-      path.join(__dirname, "../dist/interceptor.js"),
+      path.join(__dirname, `../${distDir}/interceptor.js`),
       "utf8",
     );
   });

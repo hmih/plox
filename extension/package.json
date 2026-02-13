@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "node build.js",
-    "test": "npx playwright test"
+    "build:dev": "PRODUCTION=false node build.js",
+    "build:prod": "PRODUCTION=true node build.js",
+    "build": "npm run build:dev && npm run build:prod",
+    "test:dev": "PRODUCTION=false npx playwright test",
+    "test:prod": "PRODUCTION=true npx playwright test",
+    "test": "npm run test:dev && npm run test:prod"
   },
   "keywords": [],
   "author": "",

@@ -1,15 +1,30 @@
 const esbuild = require("esbuild");
 const path = require("path");
+const fs = require("fs");
+
+// Helper to copy manifest
+async function copyManifest(outDir) {
+  const manifestPath = path.join(__dirname, "dist", "manifest.json");
+  const targetPath = path.join(outDir, "manifest.json");
+  
+  if (fs.existsSync(manifestPath)) {
+    fs.copyFileSync(manifestPath, targetPath);
+    console.log(`📄 Copied manifest to ${outDir}`);
+  } else {
+    console.warn("⚠️ Warning: manifest.json not found in dist root.");
+  }
+}
 
 const srcDir = path.join(__dirname, "src");
-const outDir = path.join(__dirname, "dist");
 
-// Determine build mode
-const isProd = process.env.NODE_ENV === "production";
+// Determine build mode and output directory
+const isProd = process.env.PRODUCTION === "true";
+const outDir = isProd ? path.join(__dirname, "dist/prod") : path.join(__dirname, "dist/dev");
 
 async function build() {
   try {
     console.log(`🚀 Building Plox extension (${isProd ? "PRODUCTION" : "DEVELOPMENT"})...`);
+    console.log(`📁 Output: ${outDir}`);
 
     await esbuild.build({
       entryPoints: [
@@ -42,7 +57,10 @@ async function build() {
       },
     });
 
-    console.log("✅ Build complete! Files in dist/");
+    // Copy manifest to the build target
+    await copyManifest(outDir);
+
+    console.log(`✅ Build complete! Files in ${outDir}`);
   } catch (err) {
     console.error("❌ Build failed:", err.message);
     process.exit(1);

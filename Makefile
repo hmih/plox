@@ -32,20 +32,27 @@ env:
 build:
 	cd extension && npm run build
 
+build-dev:
+	cd extension && npm run build:dev
+
+build-prod:
+	cd extension && npm run build:prod
+
 test:
-	cd extension && npm test
+	cd extension && npm run test
 
 format:
 	cd extension && ./scripts/format.sh
 
 clean:
-	rm -rf extension/dist/*.js
+	rm -rf extension/dist/dev/*.js
+	rm -rf extension/dist/prod/*.js
 	rm -rf extension/test-results/
 	rm -rf extension/playwright-report/
 
-dist: build
-	@echo "📦 Preparing deployment package..."
-	zip -r plox_extension.zip extension/dist/ -x "extension/dist/*.map"
+dist: build-prod
+	@echo "📦 Preparing deployment package (PRODUCTION)..."
+	zip -r plox_extension.zip extension/dist/prod/ -x "*.map"
 	@echo "✅ Deployment package created: plox_extension.zip"
 
 server-up:
