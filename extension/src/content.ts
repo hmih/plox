@@ -44,27 +44,39 @@ const setupBridge = (port: MessagePort) => {
 };
 
 const checkHandshake = () => {
-  const handshakeId = document.documentElement.getAttribute("data-x-compat-id");
-  if (handshakeId) {
-    const channel = new MessageChannel();
-    document.dispatchEvent(
-      new CustomEvent(handshakeId, { detail: channel.port2 }),
-    );
-    setupBridge(channel.port1);
-    return true;
+  // Scan for the handshake symbol
+  const syms = Object.getOwnPropertySymbols(document);
+  const handshakeSym = syms.find(s => s.toString() === "Symbol(x-compat-handshake)");
+  
+  if (handshakeSym) {
+    // @ts-ignore
+    const handshakeId = document[handshakeSym] as string;
+    
+    if (handshakeId) {
+      const channel = new MessageChannel();
+      document.dispatchEvent(
+        new CustomEvent(handshakeId, { detail: channel.port2 }),
+      );
+      setupBridge(channel.port1);
+      return true;
+    }
   }
   return false;
 };
 
-const observer = new MutationObserver((mutations) => {
-  if (checkHandshake()) {
-    observer.disconnect();
-  }
-});
+// Polling fallback since we can't observe Symbols with MutationObserver
+const initHandshake = () => {
+  if (checkHandshake()) return;
+  
+  // Poll briefly for the symbol to appear (MAIN world race condition)
+  const interval = setInterval(() => {
+    if (checkHandshake()) {
+      clearInterval(interval);
+    }
+  }, 50);
+  
+  // Give up after 5 seconds
+  setTimeout(() => clearInterval(interval), 5000);
+};
 
-if (!checkHandshake()) {
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["data-x-compat-id"],
-  });
-}
+initHandshake();

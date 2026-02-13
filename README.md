@@ -20,13 +20,14 @@ The extension is split across three isolated execution environments to balance s
 ### 1. The Interceptor (`MAIN` world)
 *   **File:** `extension/src/interceptor.ts`
 *   **Role:** Runs in X.com's own context. Proxies `fetch` and `XMLHttpRequest`.
-*   **Hardening:** Uses Descriptor Integrity to hide the proxy. Tracks internal state using a global `Symbol` to evade property enumeration scans.
+*   **Hardening:** Uses Descriptor Integrity to hide the proxy. No global symbols are used; internal state is closure-bound.
+*   **Response Proxying:** Wraps the `Response` object itself to trap `.json()` calls, modifying data in-place without cloning (reducing memory footprint and latency).
 *   **Patching:** Recursively traverses JSON responses and appends location-based flag emojis to user `name` fields.
 
 ### 2. The Bridge (`ISOLATED` world)
 *   **File:** `extension/src/content.ts`
 *   **Role:** Acts as a secure intermediary.
-*   **Handshake:** Uses a `MutationObserver` to catch a session-randomized handshake ID from the Interceptor, immediately cleaning the DOM after port exchange.
+*   **Handshake:** Scans for a transient, non-enumerable `Symbol` on `document` to receive the session ID, establishing a private channel without DOM attribute artifacts.
 *   **Stealth Caching:** Checks `chrome.storage.local` before messaging the background, enabling instant hydration for known handles.
 
 ### 3. The Orchestrator (`Background` Service Worker)
@@ -51,9 +52,9 @@ The extension is split across three isolated execution environments to balance s
 ## Appendix: Operational Details
 
 ### The Ghost Handshake
-1.  **Interceptor** generates a random ID and sets `document.documentElement.setAttribute('data-x-compat-id', id)`.
-2.  **Bridge** sees the attribute via `MutationObserver`, deletes it, and dispatches a `CustomEvent(id, { detail: port })`.
-3.  **Interceptor** receives the port and establishes the private channel.
+1.  **Interceptor** generates a random ID and stores it in a non-enumerable `Symbol` on `document`.
+2.  **Bridge** discovers the symbol via `Object.getOwnPropertySymbols(document)`, retrieves the ID, and dispatches a `CustomEvent(id, { detail: port })`.
+3.  **Interceptor** receives the port, establishes the private channel, and immediately deletes the Symbol to scrub the footprint.
 
 ### Development Environment
 *   **Bootstrap:** `nix-shell --pure`

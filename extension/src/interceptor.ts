@@ -1,8 +1,9 @@
 (function () {
-  const GHOST_SYMBOL = Symbol.for("__X_SYSTEM_COMPAT__");
-  if ((window as any)[GHOST_SYMBOL]) return;
-  (window as any)[GHOST_SYMBOL] = true;
-
+  // Remove global symbol pollution (Tripwire #2)
+  // Instead of a global guard, we rely on the hardened proxy check itself if needed,
+  // or just trust the run_at logic. Since this is an extension content script,
+  // it runs once per frame context.
+  
   // Helper to harden proxies against detection
   function harden(proxy: any, original: any) {
     Object.defineProperties(proxy, {
@@ -100,26 +101,49 @@
       }
 
       const response: Response = await Reflect.apply(target, thisArg, args);
-      const clone = response.clone();
 
-      try {
-        const json = (await clone.json()) as unknown;
-        const modified = patchUserObjects(json);
+      const createResponseProxy = (res: Response): Response => {
+        return new Proxy(res, {
+          get(target, prop, receiver) {
+            // Trap .json() to inject our patch
+            if (prop === "json") {
+              const original = target.json;
+              const hooked = async function () {
+                const json = await original.call(target);
+                try {
+                  if (patchUserObjects(json)) {
+                    return json;
+                  }
+                } catch (e) {
+                  // Silent failure
+                }
+                return json;
+              };
+              harden(hooked, original);
+              return hooked;
+            }
 
-        if (modified) {
-          const newHeaders = new Headers(response.headers);
-          newHeaders.delete("content-encoding");
-          newHeaders.delete("content-length");
+            // Trap .clone() to ensure the clone is also proxied
+            if (prop === "clone") {
+              const original = target.clone;
+              const hooked = function () {
+                return createResponseProxy(original.call(target));
+              };
+              harden(hooked, original);
+              return hooked;
+            }
 
-          return new Response(JSON.stringify(json), {
-            status: response.status,
-            statusText: response.statusText,
-            headers: newHeaders,
-          });
-        }
-      } catch (e) {}
+            const value = Reflect.get(target, prop, receiver);
+            if (typeof value === "function") {
+              // Ensure native methods run against the real target
+              return value.bind(target);
+            }
+            return value;
+          },
+        });
+      };
 
-      return response;
+      return createResponseProxy(response);
     },
   });
   harden(fetchProxy, nativeFetch);
@@ -195,15 +219,26 @@
     }
   };
 
+  // Hardened Handshake: Use a transient Symbol instead of DOM attributes
+  const HANDSHAKE_SYMBOL = Symbol("x-compat-handshake");
   const handshakeId = Math.random().toString(36).slice(2);
-  document.documentElement.setAttribute("data-x-compat-id", handshakeId);
+  
+  // Stash the ID in a non-enumerable property on document
+  Object.defineProperty(document, HANDSHAKE_SYMBOL, {
+    value: handshakeId,
+    configurable: true,
+    enumerable: false,
+    writable: false
+  });
 
   document.addEventListener(
     handshakeId,
     (e: any) => {
       if (e.detail instanceof MessagePort) {
         setupPort(e.detail);
-        document.documentElement.removeAttribute("data-x-compat-id");
+        // Nuclear cleanup: remove the symbol and the listener
+        // @ts-ignore
+        delete document[HANDSHAKE_SYMBOL];
       }
     },
     { once: true },

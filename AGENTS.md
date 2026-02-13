@@ -16,7 +16,8 @@ Follow these steps at the start of every session:
     ```
 3.  **Stealth Audit:** Verify that no new footprints have been introduced.
     - Check `extension/src/` for any `document.createElement` or `styles.css` imports.
-    - Ensure `interceptor.ts` still uses `Symbol` for markers.
+    - Ensure `interceptor.ts` does NOT use `Symbol.for()` (global registry pollution).
+    - Verify `fetch` proxy uses in-place `.json()` hooking, not `.clone()`.
 
 ---
 
@@ -26,7 +27,7 @@ Plox uses **Nuclear Stealth**. Violation of these rules is a critical failure.
 
 1.  **NO DOM MUTATIONS:** Never use `appendChild`, `prepend`, or `innerHTML`.
 2.  **NO PERSISTENT ATTRIBUTES:** Never use `data-plox-*` or custom IDs.
-3.  **NO PROPERTY POLLUTION:** Use `Symbol` for internal markers on `window` or `document`.
+3.  **NO GLOBAL POLLUTION:** Do not use `Symbol.for()` or exposed global variables. Use closure-bound state or transient non-enumerable properties.
 4.  **PROXY INTEGRITY:** Functions like `fetch` must look native to `toString()` and descriptor inspection.
 5.  **ZERO FOOTPRINT:** The DOM must be 100% identical to its original state after the handshake.
 
@@ -40,7 +41,7 @@ Plox uses **Nuclear Stealth**. Violation of these rules is a critical failure.
 - **Proxy Hardening:** Always use the `harden` helper for any new proxies.
 
 ### Bridge Development (`ISOLATED` World)
-- **Ghost Handshake:** Maintain the `MutationObserver` + `CustomEvent` handshake. NEVER use `window.postMessage` for discovery or updates.
+- **Ghost Handshake:** Use `Object.getOwnPropertySymbols(document)` to discover the handshake ID. Avoid `MutationObserver` for the initial handshake to prevent attribute race conditions.
 - **Stealth Caching:** Always check `chrome.storage.local` before querying the background script.
 
 ### Background Development (Service Worker)
@@ -68,8 +69,8 @@ Run these in the browser console during development:
 
 | Component | Responsibility | Environment | Handshake Role |
 | :--- | :--- | :--- | :--- |
-| `interceptor.ts` | Data Patching | `MAIN` World | Sets `data-x-compat-id` |
-| `content.ts` | Secure Bridge | `ISOLATED` World | Dispatches `CustomEvent` |
+| `interceptor.ts` | Data Patching | `MAIN` World | Sets transient `Symbol` |
+| `content.ts` | Secure Bridge | `ISOLATED` World | Discovers Symbol & Dispatches |
 | `background.ts` | Server Sync | Service Worker | N/A |
 | `app.py` | API Lookup | Flask Server | N/A |
 
