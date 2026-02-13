@@ -205,11 +205,6 @@
         return createResponseProxy(response);
       },
     });
-        };
-  
-        return createResponseProxy(response);
-      },
-    });
     harden(proxy, originalFetch);
     return proxy;
   }
