@@ -1,10 +1,16 @@
 /**
  * Bridge between MAIN world (Interceptor) and Extension Background
  */
+const Cmd = {
+  SYNC: 0,
+  UPDATE: 1,
+  RETRY: 2
+} as const;
+
 const setupBridge = (port: MessagePort) => {
   port.onmessage = (event) => {
     const data = event.data as Record<string, unknown>;
-    if (data.type === "__DATA_LAYER_SYNC__") {
+    if (data.type === Cmd.SYNC) {
       const { handle } = data as { handle: string };
 
       // Stealth Caching: Check storage before messaging background
@@ -13,7 +19,7 @@ const setupBridge = (port: MessagePort) => {
           const cached = result[`cache:${handle}`];
           if (cached) {
             port.postMessage({
-              type: "__DATA_LAYER_UPDATE__",
+              type: Cmd.UPDATE,
               handle,
               flag: cached.flag,
             });
@@ -32,13 +38,13 @@ const setupBridge = (port: MessagePort) => {
   chrome.runtime.onMessage.addListener((message: any) => {
     if (message.action === "visualizeFlag") {
       port.postMessage({
-        type: "__DATA_LAYER_UPDATE__",
+        type: Cmd.UPDATE,
         handle: message.handle ?? "",
         flag: message.flag,
       });
     } else if (message.action === "lookupFailed") {
       port.postMessage({
-        type: "__DATA_LAYER_RETRY__",
+        type: Cmd.RETRY,
         handle: message.handle,
       });
     }

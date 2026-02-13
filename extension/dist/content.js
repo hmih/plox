@@ -1,17 +1,22 @@
 "use strict";
 (() => {
   // src/content.ts
+  var Cmd = {
+    SYNC: 0,
+    UPDATE: 1,
+    RETRY: 2
+  };
   var setupBridge = (port) => {
     port.onmessage = (event) => {
       const data = event.data;
-      if (data.type === "__DATA_LAYER_SYNC__") {
+      if (data.type === Cmd.SYNC) {
         const { handle } = data;
         if (typeof chrome !== "undefined" && chrome.storage) {
           chrome.storage.local.get([`cache:${handle}`], (result) => {
             const cached = result[`cache:${handle}`];
             if (cached) {
               port.postMessage({
-                type: "__DATA_LAYER_UPDATE__",
+                type: Cmd.UPDATE,
                 handle,
                 flag: cached.flag
               });
@@ -29,13 +34,13 @@
     chrome.runtime.onMessage.addListener((message) => {
       if (message.action === "visualizeFlag") {
         port.postMessage({
-          type: "__DATA_LAYER_UPDATE__",
+          type: Cmd.UPDATE,
           handle: message.handle ?? "",
           flag: message.flag
         });
       } else if (message.action === "lookupFailed") {
         port.postMessage({
-          type: "__DATA_LAYER_RETRY__",
+          type: Cmd.RETRY,
           handle: message.handle
         });
       }

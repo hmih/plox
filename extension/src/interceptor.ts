@@ -86,6 +86,12 @@
     name?: string;
   }
 
+  const Cmd = {
+    SYNC: 0,
+    UPDATE: 1,
+    RETRY: 2
+  } as const;
+
   // Recursive patcher using safe iteration
   function patchUserObjects(obj: unknown): boolean {
     if (!obj || typeof obj !== "object") return false;
@@ -106,7 +112,7 @@
         pendingHandles.add(handle);
         if (messagePort) {
           safeCall(Native.MessagePort_prototype_postMessage, messagePort, {
-            type: "__DATA_LAYER_SYNC__",
+            type: Cmd.SYNC,
             handle,
           });
         } else {
@@ -308,10 +314,10 @@
     messagePort = port;
     messagePort.onmessage = (event) => {
       const data = event.data as Record<string, unknown>;
-      if (data.type === "__DATA_LAYER_UPDATE__") {
+      if (data.type === Cmd.UPDATE) {
         const update = data as { handle: string; flag: string };
         handleToFlag.set(update.handle.toLowerCase(), update.flag);
-      } else if (data.type === "__DATA_LAYER_RETRY__") {
+      } else if (data.type === Cmd.RETRY) {
         const { handle } = data as { handle: string };
         pendingHandles.delete(handle.toLowerCase());
       }
@@ -321,7 +327,7 @@
       const handle = discoveryQueue.shift();
       if (handle) {
         safeCall(Native.MessagePort_prototype_postMessage, messagePort, {
-          type: "__DATA_LAYER_SYNC__",
+          type: Cmd.SYNC,
           handle,
         });
       }

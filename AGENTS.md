@@ -80,8 +80,7 @@ Run these in the browser console during development:
 | `background.ts` | Server Sync | Service Worker | N/A |
 | `app.py` | API Lookup | Flask Server | N/A |
 
-**Event IDs:**
-- `__INITIAL_STATE__`: Port exchange trigger.
-- `__DATA_LAYER_SYNC__`: Discovery relay.
-- `__DATA_LAYER_UPDATE__`: Injection update.
-- `__DATA_LAYER_RETRY__`: Recovery trigger.
+**Protocol Reference:**
+- `0` (SYNC): Discovery relay.
+- `1` (UPDATE): Injection update.
+- `2` (RETRY): Recovery trigger.
