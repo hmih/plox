@@ -12,6 +12,7 @@ async function build() {
       entryPoints: [
         path.join(srcDir, "background.ts"),
         path.join(srcDir, "content.ts"),
+        path.join(srcDir, "interceptor.ts"),
       ],
       bundle: true,
       outdir: outDir,

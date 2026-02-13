@@ -1,72 +1,54 @@
-let nextId = 1;
+/**
+ * Bridge between MAIN world (Interceptor) and Extension Background
+ */
+interface DiscoveryMessage {
+  type: "PLOX_DISCOVERED";
+  handle: string;
+}
 
-const injectFlag = (
-  elementId: string,
-  flag: string,
-  location: string | null,
-) => {
-  const el = document.querySelector(
-    `[data-plox-id="${elementId}"]`,
-  ) as HTMLElement | null;
-  if (!el || el.dataset["ploxProcessed"] === "true") return;
+interface FlagUpdateMessage {
+  type: "PLOX_FLAG_UPDATE";
+  handle: string;
+  flag: string;
+}
 
-  const badge = document.createElement("span");
-  badge.className = "plox-flag-badge";
-  badge.textContent = flag;
-  badge.title = location || "Unknown Location";
-
-  el.prepend(badge);
-  el.dataset["ploxProcessed"] = "true";
-};
-
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === "visualizeFlag") {
-    console.log(
-      `[Plox] Flag for ${message.elementId}: ${message.flag} (${message.location})`,
-    );
-    injectFlag(message.elementId, message.flag, message.location);
-  }
-});
-
-const HANDLE_SELECTOR = [
-  '[data-testid="User-Names"] span:last-child:not([data-plox-id])',
-  'div[dir="ltr"] > span:first-child:not([data-plox-id])',
-].join(", ");
-
-const scanForHandles = () => {
-  const handleElements =
-    document.querySelectorAll<HTMLElement>(HANDLE_SELECTOR);
-
-  for (const el of handleElements) {
-    const text = el.innerText;
-    if (!text.startsWith("@")) continue;
-
-    const handle = text.substring(1);
-    const elementId = `plox-${nextId++}`;
-    el.dataset["ploxId"] = elementId;
-    console.debug(`[Plox] Discovered @${handle} (${elementId})`);
+window.addEventListener("message", (event: MessageEvent) => {
+  const data = event.data as unknown;
+  if (
+    data &&
+    typeof data === "object" &&
+    (data as Record<string, unknown>).type === "PLOX_DISCOVERED"
+  ) {
+    const { handle } = data as DiscoveryMessage;
+    // Relay handle discovery to background.ts
     chrome.runtime.sendMessage({
       action: "processHandle",
       handle,
-      elementId,
+      elementId: "graphql-injected", // Legacy parameter, not used in nuclear mode
     });
   }
-};
+});
 
-let scanPending = false;
+/**
+ * Listen for updates from background.ts
+ */
+interface VisualizeFlagMessage {
+  action: "visualizeFlag";
+  handle?: string;
+  flag: string;
+}
 
-const scheduleScan = () => {
-  if (scanPending) return;
-  scanPending = true;
-  requestIdleCallback(
-    () => {
-      scanPending = false;
-      scanForHandles();
-    },
-    { timeout: 500 },
-  );
-};
+chrome.runtime.onMessage.addListener((message: unknown) => {
+  const msg = message as VisualizeFlagMessage;
+  if (msg.action === "visualizeFlag") {
+    // Relay flag data back to the MAIN world Interceptor
+    const update: FlagUpdateMessage = {
+      type: "PLOX_FLAG_UPDATE",
+      handle: msg.handle ?? "",
+      flag: msg.flag,
+    };
+    window.postMessage(update, "*");
+  }
+});
 
-const observer = new MutationObserver(scheduleScan);
-observer.observe(document.body, { childList: true, subtree: true });
-scanForHandles();
+console.log("[Plox] Bridge script initialized");

@@ -2,11 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ESNext"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
     "moduleResolution": "node",
     "strict": true,
     "noUnusedLocals": true,
@@ -24,8 +20,5 @@
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true
   },
-  "include": [
-    "src/**/*",
-    "tests/**/*"
-  ]
+  "include": ["src/**/*", "tests/**/*"]
 }

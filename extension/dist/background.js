@@ -45,6 +45,7 @@
       console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
       chrome.tabs.sendMessage(tabId, {
         action: "visualizeFlag",
+        handle,
         elementId,
         flag: cached.flag,
         location: cached.location
@@ -71,6 +72,7 @@
         console.log(`[Plox] @${handle} -> ${data.location} ${flag}`);
         chrome.tabs.sendMessage(tabId, {
           action: "visualizeFlag",
+          handle,
           elementId,
           flag,
           location: data.location
@@ -85,13 +87,15 @@
     }
   };
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
-    chrome.runtime.onMessage.addListener((request, sender) => {
-      if (request.action !== "processHandle") return;
-      if (!sender.tab?.id) {
-        console.warn("[Plox] processHandle received without tab id");
-        return;
+    chrome.runtime.onMessage.addListener(
+      (request, sender) => {
+        if (request.action !== "processHandle") return;
+        if (!sender.tab?.id) {
+          console.warn("[Plox] processHandle received without tab id");
+          return;
+        }
+        performInvestigation(request.handle, sender.tab.id, request.elementId);
       }
-      performInvestigation(request.handle, sender.tab.id, request.elementId);
-    });
+    );
   }
 })();

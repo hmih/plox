@@ -4,7 +4,11 @@
   "description": "All we're missing is greentext",
   "version": "0.3.0",
   "permissions": ["storage"],
-  "host_permissions": ["https://x.com/*", "https://twitter.com/*", "https://plox.krepost.xy/*"],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://plox.krepost.xy/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -15,6 +19,12 @@
       "js": ["content.js"],
       "world": "ISOLATED",
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
+      "js": ["interceptor.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": []

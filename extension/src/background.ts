@@ -22,6 +22,7 @@ export const performInvestigation = async (
     console.log(`[Plox] Cache hit for @${handle}: ${cached.flag}`);
     chrome.tabs.sendMessage(tabId, {
       action: "visualizeFlag",
+      handle,
       elementId,
       flag: cached.flag,
       location: cached.location,
@@ -48,7 +49,11 @@ export const performInvestigation = async (
       username: string;
       processed: boolean;
       location: string | null;
-    } = await response.json();
+    } = (await response.json()) as {
+      username: string;
+      processed: boolean;
+      location: string | null;
+    };
 
     console.log(`[Plox] Server response for @${handle}:`, data);
 
@@ -60,6 +65,7 @@ export const performInvestigation = async (
 
       chrome.tabs.sendMessage(tabId, {
         action: "visualizeFlag",
+        handle,
         elementId,
         flag,
         location: data.location,
@@ -74,17 +80,25 @@ export const performInvestigation = async (
   }
 };
 
+interface PloxMessage {
+  action: string;
+  handle: string;
+  elementId: string;
+}
+
 if (
   typeof chrome !== "undefined" &&
   chrome.runtime &&
   chrome.runtime.onMessage
 ) {
-  chrome.runtime.onMessage.addListener((request, sender) => {
-    if (request.action !== "processHandle") return;
-    if (!sender.tab?.id) {
-      console.warn("[Plox] processHandle received without tab id");
-      return;
-    }
-    performInvestigation(request.handle, sender.tab.id, request.elementId);
-  });
+  chrome.runtime.onMessage.addListener(
+    (request: PloxMessage, sender: chrome.runtime.MessageSender) => {
+      if (request.action !== "processHandle") return;
+      if (!sender.tab?.id) {
+        console.warn("[Plox] processHandle received without tab id");
+        return;
+      }
+      performInvestigation(request.handle, sender.tab.id, request.elementId);
+    },
+  );
 }
