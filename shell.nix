@@ -15,6 +15,7 @@ pkgs.mkShellNoCC {
     sqlite
     shfmt
     zip
+    less
   ];
 
   shellHook = ''

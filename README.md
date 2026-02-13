@@ -20,14 +20,14 @@ The extension is split across three isolated execution environments to balance s
 ### 1. The Interceptor (`MAIN` world)
 *   **File:** `extension/src/interceptor.ts`
 *   **Role:** Runs in X.com's own context. Proxies `fetch` and `XMLHttpRequest`.
-*   **Hardening:** Uses Descriptor Integrity to hide the proxy. No global symbols are used; internal state is closure-bound.
+*   **Stealth:** Uses a **Global Lie Map** to hook `Function.prototype.toString`. This allows proxies to recursively pass introspection checks (e.g., `fetch.toString().toString()` returns `[native code]`).
 *   **Response Proxying:** Wraps the `Response` object itself to trap `.json()` calls, modifying data in-place without cloning (reducing memory footprint and latency).
 *   **Patching:** Recursively traverses JSON responses and appends location-based flag emojis to user `name` fields.
 
 ### 2. The Bridge (`ISOLATED` world)
 *   **File:** `extension/src/content.ts`
 *   **Role:** Acts as a secure intermediary.
-*   **Handshake:** Scans for a transient, non-enumerable `Symbol` on `document` to receive the session ID, establishing a private channel without DOM attribute artifacts.
+*   **Handshake:** Camouflages the connection as a standard "ReactDevTools" setup event to blend in with X.com's React-heavy environment.
 *   **Stealth Caching:** Checks `chrome.storage.local` before messaging the background, enabling instant hydration for known handles.
 
 ### 3. The Orchestrator (`Background` Service Worker)
@@ -77,27 +77,31 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
 *   **Logic:** At `document_start` (Main World), immediately capture references to critical native globals (`JSON`, `Object`, `Function`, `MessagePort`, `Proxy`, `Reflect`, `document`, `window`) into a private closure.
 *   **Constraint:** All subsequent extension logic must *only* use these captured references. Never access global `window` properties during runtime, as X.com may have monkey-patched them to log activity.
 
-**Phase 2: The Silent Handshake (Zero-Footprint)**
-*   **Logic:** Establish a communication bridge between the `MAIN` world (Interceptor) and `ISOLATED` world (Content Script) without events or DOM attributes.
-    1.  Interceptor defines a local `Symbol` on `document`.
-    2.  This Symbol uses a `get` accessor (trap).
-    3.  Bridge scans `Object.getOwnPropertySymbols(document)` to find the key.
-    4.  Bridge reads the property: `document[Symbol]`.
-    5.  The `get` trap fires, executing a closure that accepts the Bridge's `MessagePort`, establishes the link, and immediately `delete`s the Symbol from `document`.
-*   **Result:** No `CustomEvent` dispatched. No `addEventListener`. No lingering DOM attributes.
+**Phase 2: The Camouflaged Handshake**
+*   **Logic:** Establish a communication bridge between `MAIN` and `ISOLATED` worlds using traffic camouflage.
+*   **Mechanism:** Instead of custom events (detectable), the Bridge dispatches a `window.postMessage` with `source: "ReactDevTools_connect_v4"`.
+*   **Interception:** The Interceptor captures this specific event pattern (common in React apps), halts propagation (`stopImmediatePropagation`), and extracts the `MessagePort`.
+*   **Result:** Connection looks like standard React DevTools initialization traffic to any observer.
 
-**Phase 3: Iframe Immunization (Cross-Realm Defense)**
-*   **Logic:** Intercept `document.createElement`.
-*   **Action:** If an `<iframe>` is created:
-    1.  Detect the creation immediately.
-    2.  Recursively inject the **Phase 1 Native Vault** and **Phase 4 Proxies** into the new iframe's `contentWindow` *before* the site's scripts can access it.
-*   **Goal:** Ensure `window.fetch === iframe.contentWindow.fetch` evaluates to `true`, defeating "Cross-Realm" integrity checks.
+**Phase 3: Iframe Immunization (Prototype Hook)**
+*   **Logic:** Secure cross-realm access without proxying `document.createElement` (which causes "Illegal Invocation" crashes).
+*   **Mechanism:** Hook `HTMLIFrameElement.prototype.contentWindow` using a getter.
+*   **Action:** When `iframe.contentWindow` is accessed:
+    1.  Call the original native getter.
+    2.  Check if the returned window is already immunized.
+    3.  If not, inject the **Phase 4 Proxies** (fetch/XHR) into the new window context.
+    4.  Register the new window in a `WeakSet` to prevent re-patching.
+*   **Stealth:** The hook itself is registered in the **Lie Map**, so `Object.getOwnPropertyDescriptor(...).get.toString()` returns `[native code]`.
 
-**Phase 4: Recursive Response Proxying & Hardening**
-*   **Proxy Strategy:** Wrap the global `fetch` and `XMLHttpRequest`.
-*   **Recursion:** Do not clone responses. Instead, wrap the `Response` object in a Proxy. Trap the `.json()` method.
-*   **In-Place Patching:** When `.json()` is called, await the parsing, modify the object *in-place* (mutating the keys), and return the mutated object. This avoids the memory overhead of `response.clone()`.
-*   **Descriptor Perfection:** Use a `harden` helper to copy the exact `value`, `writable`, `enumerable`, and `configurable` descriptors from the native original to the proxy, including masking `toString()` to return `[native code]`.
+**Phase 4: The Lie Map (Deep Stealth)**
+*   **The Meta-Problem:** Standard proxies fail recursive inspection (`fetch.toString().toString()` reveals code).
+*   **Solution:** Do not patch individual objects' `toString`. Instead, patch the source of truth: `Function.prototype.toString`.
+*   **The Lie Map:** Maintain a private `WeakMap<Function, string>` mapping proxies to their original native source strings.
+*   **Global Hook:** The patched `Function.prototype.toString`:
+    1.  Checks if `this` is in the Lie Map.
+    2.  If yes, returns the stored "Lie" (native string).
+    3.  If no, calls the real native `toString`.
+*   **The Ouroboros:** The Global Hook registers *itself* in the Lie Map, so inspecting the inspector reveals `[native code]`.
 
 ### 3. Data Layer Logic
 *   **Target:** X.com GraphQL responses.
