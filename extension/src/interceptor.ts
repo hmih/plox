@@ -5,6 +5,7 @@ import {
   GRAPHQL_TARGET_KEYS,
   MAX_RECURSION_DEPTH,
   GhostMessage,
+  HANDSHAKE_POOL,
 } from "./core";
 
 (function () {
@@ -343,12 +344,20 @@ import {
     }
   };
 
+  /**
+   * NUCLEAR STEALTH: Chameleon Handshake
+   * We monitor for any signatures from our shared HANDSHAKE_POOL.
+   */
   const onHandshake = (event: Event) => {
     const e = event as MessageEvent;
-    if (e.data && e.data.source === "ReactDevTools_connect_v4") {
-      e.stopImmediatePropagation();
-      e.preventDefault();
-      if (e.ports[0]) setupPort(e.ports[0]);
+    if (e.data && e.data.source) {
+      // Check if the source matches any of our personas
+      const isPersona = HANDSHAKE_POOL.some((p) => p.source === e.data.source);
+      if (isPersona && e.ports[0]) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        setupPort(e.ports[0]);
+      }
     }
   };
 

@@ -27,7 +27,7 @@ The extension is split across three isolated execution environments to balance s
 ### 2. The Bridge (`ISOLATED` world)
 *   **File:** `extension/src/content.ts`
 *   **Role:** Acts as a secure intermediary.
-*   **Handshake:** Camouflages the connection as a standard "ReactDevTools" setup event to blend in with X.com's React-heavy environment.
+*   **Handshake:** Employs a **Chameleon Handshake** that selects a random library signature (React, Vue, Sentry, etc.) at runtime to blend in with background noise.
 *   **Stealth Caching:** Checks `chrome.storage.local` before messaging the background, enabling instant hydration for known handles.
 
 ### 3. The Orchestrator (`Background` Service Worker)
@@ -52,8 +52,8 @@ The extension is split across three isolated execution environments to balance s
 ## Appendix: Operational Details
 
 ### The Ghost Handshake
-1.  **Bridge** generates a `MessageChannel` and dispatches a `window.postMessage` with `{ source: "ReactDevTools_connect_v4" }`, attaching `port2`.
-2.  **Interceptor** (already listening in the `MAIN` world) traps this specific message pattern, which is common in React environments, and extracts the port.
+1.  **Bridge** generates a `MessageChannel` and dispatches a `window.postMessage` with a randomized **Handshake Persona** (e.g., `{ source: "vue-devtools-hook", method: "init" }`), attaching `port2`.
+2.  **Interceptor** (already listening in the `MAIN` world) traps any message matching the shared persona pool and extracts the port.
 3.  **Interceptor** halts the message propagation (`stopImmediatePropagation`) to hide the handshake from the page's own listeners and establishes the private bridge.
 
 ### Development Environment
@@ -77,11 +77,11 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
 *   **Logic:** At `document_start` (Main World), immediately capture references to critical native globals (`JSON`, `Object`, `Function`, `MessagePort`, `Proxy`, `Reflect`, `document`, `window`) into a private closure.
 *   **Constraint:** All subsequent extension logic must *only* use these captured references. Never access global `window` properties during runtime, as X.com may have monkey-patched them to log activity.
 
-**Phase 2: The Camouflaged Handshake**
-*   **Logic:** Establish a communication bridge between `MAIN` and `ISOLATED` worlds using traffic camouflage.
-*   **Mechanism:** Instead of custom events (detectable), the Bridge dispatches a `window.postMessage` with `source: "ReactDevTools_connect_v4"`.
-*   **Interception:** The Interceptor captures this specific event pattern (common in React apps), halts propagation (`stopImmediatePropagation`), and extracts the `MessagePort`.
-*   **Result:** Connection looks like standard React DevTools initialization traffic to any observer.
+**Phase 2: The Chameleon Handshake**
+*   **Logic:** Establish a communication bridge between `MAIN` and `ISOLATED` worlds using library mimicry.
+*   **Mechanism:** Instead of a single hardcoded event (detectable), the Bridge selects a random **Handshake Persona** from a pool of common library signatures (React, Vue, Redux, Sentry, Apollo).
+*   **Interception:** The Interceptor monitors all `message` events, matches against the persona pool, and validates the presence of a `MessagePort`.
+*   **Result:** Connection looks like standard third-party library initialization traffic (e.g., `ReactDevTools_connect_v4` or `vue-devtools-hook`) to any observer.
 
 **Phase 3: Iframe Immunization (Prototype Hook)**
 *   **Logic:** Secure cross-realm access without proxying `document.createElement` (which causes "Illegal Invocation" crashes).

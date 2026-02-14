@@ -50,6 +50,21 @@ export const GRAPHQL_TARGET_KEYS = [
 
 export const MAX_RECURSION_DEPTH = 20;
 
+/**
+ * CHAMELEON HANDSHAKE PERSONAS
+ * We mimic common developer tools and monitoring libraries to blend into background noise.
+ */
+export const HANDSHAKE_POOL = [
+  { source: "ReactDevTools_connect_v4", payload: { type: "connect" } },
+  { source: "vue-devtools-hook", payload: { method: "init" } },
+  { source: "redux-devtools-extension", payload: { action: "START" } },
+  { source: "sentry-init", payload: { event: "ping" } },
+  { source: "apollo-client-init", payload: { cmd: "discover" } },
+  { source: "next-dev-refresh", payload: { state: "sync" } },
+] as const;
+
+export type HandshakePersona = (typeof HANDSHAKE_POOL)[number];
+
 export const log = (msg: string, logger?: any, ...args: any[]) => {
   if (typeof __DEV__ !== "undefined" && __DEV__) {
     const l = logger || console;

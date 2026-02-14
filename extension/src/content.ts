@@ -1,6 +1,3 @@
-/**
- * Bridge between MAIN world (Interceptor) and Extension Background
- */
 import {
   GhostCmd,
   BusCmd,
@@ -8,6 +5,7 @@ import {
   normalizeHandle,
   GhostMessage,
   BusMessage,
+  HANDSHAKE_POOL,
 } from "./core";
 
 const setupBridge = (port: MessagePort) => {
@@ -61,11 +59,15 @@ const initHandshake = () => {
   // Bridge Setup
   setupBridge(channel.port1);
 
-  // Execute Handshake
-  // Camouflaged as React DevTools connection
+  // CHAMELEON HANDSHAKE: Pick a random persona
+  const persona =
+    HANDSHAKE_POOL[Math.floor(Math.random() * HANDSHAKE_POOL.length)];
+
+  // Execute Handshake with persona data + Magic Byte (our MessagePort)
   window.postMessage(
     {
-      source: "ReactDevTools_connect_v4",
+      source: persona.source,
+      ...persona.payload,
     },
     "*",
     [channel.port2],
