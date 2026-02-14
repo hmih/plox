@@ -1,8 +1,8 @@
-# Plox: Total Stealth Data Interception
+# Plox: Stealth Data Interception
 
 Plox is an advanced browser extension and backend system designed to provide geographic context for X.com handles while remaining entirely invisible to anti-tamper scripts. It operates via **Data-Layer Interception**, patching GraphQL responses in memory before they reach the UI.
 
-## Core Philosophy: Nuclear Stealth
+## Core Philosophy: Advanced Stealth
 
 X.com employs sophisticated detection mechanisms. Plox is built to evade these through four non-negotiable pillars:
 
@@ -27,13 +27,17 @@ The extension is split across three isolated execution environments to balance s
 ### 2. The Bridge (`ISOLATED` world)
 *   **File:** `extension/src/content.ts`
 *   **Role:** Acts as a secure intermediary.
-*   **Handshake:** Employs a **Chameleon Handshake** that selects a random library signature (React, Vue, Sentry, etc.) at runtime to blend in with background noise.
+*   **Handshake:** Employs a **Randomized Handshake** that selects a random library signature (React, Vue, Sentry, etc.) at runtime to blend in with background noise.
 *   **Stealth Caching:** Checks `chrome.storage.local` before messaging the background, enabling instant hydration for known handles.
 
 ### 3. The Orchestrator (`Background` Service Worker)
 *   **File:** `extension/src/background.ts`
 *   **Role:** Manages persistent state and server communication.
 *   **Sync:** Fetches data from the Plox Server and synchronizes it to local storage for the Bridge.
+
+### 4. Shared Core (`core.ts`)
+*   **File:** `extension/src/core.ts`
+*   **Role:** Defines shared protocols, constants, and the handshake persona pool.
 
 ---
 
@@ -69,7 +73,7 @@ The extension is split across three isolated execution environments to balance s
 > **SYSTEM INSTRUCTION:** The following specification represents the "DNA" of the Plox architecture. It is designed to allow an advanced LLM to reconstruct the system's core logic from scratch without seeing the original code.
 
 ### 1. System Context
-Develop a browser extension ("System Font Compatibility Layer") that invisibly intercepts X.com's data layer to inject geographic context (flags) into user handles. The system must operate under **Nuclear Stealth** rules, defeating advanced anti-tamper scripts (Cross-Realm checks, Prototype scanning, DOM MutationObservers).
+Develop a browser extension ("System Font Compatibility Layer") that invisibly intercepts X.com's data layer to inject geographic context (flags) into user handles. The system must operate under **Advanced Stealth** rules, defeating advanced anti-tamper scripts (Cross-Realm checks, Prototype scanning, DOM MutationObservers).
 
 ### 2. The 4-Phase Stealth Architecture
 
@@ -77,7 +81,7 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
 *   **Logic:** At `document_start` (Main World), immediately capture references to critical native globals (`JSON`, `Object`, `Function`, `MessagePort`, `Proxy`, `Reflect`, `document`, `window`) into a private closure.
 *   **Constraint:** All subsequent extension logic must *only* use these captured references. Never access global `window` properties during runtime, as X.com may have monkey-patched them to log activity.
 
-**Phase 2: The Chameleon Handshake**
+**Phase 2: The Randomized Handshake**
 *   **Logic:** Establish a communication bridge between `MAIN` and `ISOLATED` worlds using library mimicry.
 *   **Mechanism:** Instead of a single hardcoded event (detectable), the Bridge selects a random **Handshake Persona** from a pool of common library signatures (React, Vue, Redux, Sentry, Apollo).
 *   **Interception:** The Interceptor monitors all `message` events, matches against the persona pool, and validates the presence of a `MessagePort`.
@@ -101,17 +105,17 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
     1.  Checks if `this` is in the Lie Map.
     2.  If yes, returns the stored "Lie" (native string).
     3.  If no, calls the real native `toString`.
-*   **The Ouroboros:** The Global Hook registers *itself* in the Lie Map, so inspecting the inspector reveals `[native code]`.
+*   **Self-referential integrity:** The Global Hook registers *itself* in the Lie Map, so inspecting the inspector reveals `[native code]`.
 *   **Constructor Masking:** The `XMLHttpRequest` proxy traps the `constructor` property on instances, returning the proxy wrapper instead of the native class, causing `(new XMLHttpRequest()).constructor === XMLHttpRequest` to pass.
 *   **Tag & Descriptor Integrity:** All proxies (fetch, XHR, Response) trap `Symbol.toStringTag` to return their respective native names (e.g., `"XMLHttpRequest"`, `"Response"`). When applying proxies to `window`, the original property descriptors (enumerable, configurable, writable) are mirrored exactly using `Object.defineProperty`.
 
 ### 3. Data Layer Logic
 *   **Target:** X.com GraphQL responses.
-*   **Traversal:** Recursively scan JSON objects (max depth 20) for keys: `data`, `user`, `legacy`, `user_results`, `result`, `core`, `instructions`, `entries`, `itemContent`, `tweet_results`, `globalObjects`, `users`.
+*   **Traversal:** Recursively scan JSON objects (max depth 20) for keys: `data`, `user`, `legacy`, `user_results`, `result`, `core`, `instructions`, `entries`, `content`, `itemContent`, `tweet_results`, `globalObjects`, `users`.
 *   **Modification:** Identify objects with `screen_name` and `name`. If a location match is found in the cache, append the flag emoji to `name` string.
 *   **Protocol:** Uses dual-channel **Opaque Integers**:
-    *   **GHOST (0-2):** Interceptor <-> Bridge.
-    *   **BUS (4-6):** Bridge <-> Background.
+    *   **GHOST (201-204):** Interceptor <-> Bridge.
+    *   **BUS (401-406):** Bridge <-> Background.
 
 ### 4. Backend Specification
 *   **Stack:** Python (Flask) + SQLite.
