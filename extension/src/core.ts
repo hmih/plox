@@ -53,14 +53,34 @@ export const MAX_RECURSION_DEPTH = 20;
 /**
  * CHAMELEON HANDSHAKE PERSONAS
  * We mimic common developer tools and monitoring libraries to blend into background noise.
+ * Structure mimics real initialization events to pass behavioral analysis.
  */
 export const HANDSHAKE_POOL = [
-  { source: "ReactDevTools_connect_v4", payload: { type: "connect" } },
-  { source: "vue-devtools-hook", payload: { method: "init" } },
-  { source: "redux-devtools-extension", payload: { action: "START" } },
-  { source: "sentry-init", payload: { event: "ping" } },
-  { source: "apollo-client-init", payload: { cmd: "discover" } },
-  { source: "next-dev-refresh", payload: { state: "sync" } },
+  {
+    source: "ReactDevTools_connect_v4",
+    payload: { type: "connect", version: "4.28.0" },
+    delayRange: [50, 150], // Early initialization
+  },
+  {
+    source: "vue-devtools-hook",
+    payload: { method: "init", version: "6.5.0" },
+    delayRange: [100, 300], // Moderate delay
+  },
+  {
+    source: "redux-devtools-extension",
+    payload: { action: "START", id: "autodetect" },
+    delayRange: [200, 500], // Lazy load often
+  },
+  {
+    source: "sentry-init",
+    payload: { event: "ping", sdk: { name: "sentry.javascript.browser" } },
+    delayRange: [500, 1500], // Monitoring tools load late
+  },
+  {
+    source: "apollo-client-init",
+    payload: { cmd: "discover", version: "3.7.1" },
+    delayRange: [300, 800], // Mid-load
+  },
 ] as const;
 
 export type HandshakePersona = (typeof HANDSHAKE_POOL)[number];

@@ -352,8 +352,12 @@ import {
     const e = event as MessageEvent;
     if (e.data && e.data.source) {
       // Check if the source matches any of our personas
+      // DEEP MIMICRY: Also optionally check payload structure if needed,
+      // but matching the source + port is currently sufficient as we generate exact clones.
       const isPersona = HANDSHAKE_POOL.some((p) => p.source === e.data.source);
-      if (isPersona && e.ports[0]) {
+
+      // Only interrupt if it looks like a persona AND has our magic port
+      if (isPersona && e.ports && e.ports[0]) {
         e.stopImmediatePropagation();
         e.preventDefault();
         setupPort(e.ports[0]);

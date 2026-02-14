@@ -53,7 +53,7 @@ const setupBridge = (port: MessagePort) => {
   });
 };
 
-const initHandshake = () => {
+const scheduleChameleonHandshake = () => {
   const channel = new MessageChannel();
 
   // Bridge Setup
@@ -63,15 +63,29 @@ const initHandshake = () => {
   const persona =
     HANDSHAKE_POOL[Math.floor(Math.random() * HANDSHAKE_POOL.length)];
 
-  // Execute Handshake with persona data + Magic Byte (our MessagePort)
-  window.postMessage(
-    {
-      source: persona.source,
-      ...persona.payload,
-    },
-    "*",
-    [channel.port2],
-  );
+  // Calculate Jitter
+  const [min, max] = persona.delayRange;
+  const jitter = Math.floor(Math.random() * (max - min + 1)) + min;
+
+  log(`Scheduling handshake (${persona.source}) with ${jitter}ms jitter`);
+
+  setTimeout(() => {
+    // Execute Handshake with persona data + Magic Byte (our MessagePort)
+    // Structure: { source: "...", payload: { ... } }
+    // This wraps the payload to match the updated Interceptor expectation
+    window.postMessage(
+      {
+        source: persona.source,
+        payload: persona.payload,
+      },
+      "*",
+      [channel.port2],
+    );
+  }, jitter);
 };
 
-initHandshake();
+if (typeof requestIdleCallback !== "undefined") {
+  requestIdleCallback(() => scheduleChameleonHandshake());
+} else {
+  scheduleChameleonHandshake();
+}

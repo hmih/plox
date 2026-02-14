@@ -84,7 +84,9 @@ test("realistic extension simulation on realKalos account", async ({
     await resp.json(); // Consume to trigger interceptor
   });
 
-  await page.waitForTimeout(500);
+  // WAIT FOR JITTER + HANDSHAKE + PROCESSING
+  // With Jitter (max 1500ms for Sentry) + Processing, 500ms is too short.
+  await page.waitForTimeout(2000);
 
   const patchedJson = await page.evaluate(async () => {
     const resp = await fetch("https://x.com/i/api/graphql/User");
