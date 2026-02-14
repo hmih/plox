@@ -67,6 +67,9 @@ const scheduleChameleonHandshake = () => {
   const [min, max] = persona.delayRange;
   const jitter = Math.floor(Math.random() * (max - min + 1)) + min;
 
+  const targetOrigin =
+    window.location.origin === "null" ? "*" : window.location.origin;
+
   log(`Scheduling handshake (${persona.source}) with ${jitter}ms jitter`);
 
   setTimeout(() => {
@@ -78,7 +81,7 @@ const scheduleChameleonHandshake = () => {
         source: persona.source,
         payload: persona.payload,
       },
-      "*",
+      targetOrigin,
       [channel.port2],
     );
   }, jitter);

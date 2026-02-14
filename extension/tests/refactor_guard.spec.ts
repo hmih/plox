@@ -85,7 +85,8 @@ test.describe("Plox Refactoring Guard", () => {
     });
 
     // 2. Wait for the flow
-    await page.waitForTimeout(500);
+    // Stealth Jitter (500-1500ms) + Network + Processing
+    await page.waitForTimeout(3000);
 
     // 3. Second fetch should return patched data
     const patchedJson = await page.evaluate(async () => {

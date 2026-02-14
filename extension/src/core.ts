@@ -11,6 +11,7 @@ export const BusCmd = {
   PROCESS: 401,
   UPDATE: 402,
   RETRY: 406,
+  BATCH_PROCESS: 408,
 } as const;
 
 export interface GhostMessage {

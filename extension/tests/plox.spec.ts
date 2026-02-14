@@ -85,8 +85,8 @@ test("realistic extension simulation on realKalos account", async ({
   });
 
   // WAIT FOR JITTER + HANDSHAKE + PROCESSING
-  // With Jitter (max 1500ms for Sentry) + Processing, 500ms is too short.
-  await page.waitForTimeout(2000);
+  // With Stealth Jitter (max 1500ms) + Sentry Jitter + Processing, we need ample time.
+  await page.waitForTimeout(3000);
 
   const patchedJson = await page.evaluate(async () => {
     const resp = await fetch("https://x.com/i/api/graphql/User");

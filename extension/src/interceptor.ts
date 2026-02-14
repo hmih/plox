@@ -53,6 +53,7 @@ import {
 
   const lies = new Native.WeakMap<any, string>();
   const proxiedWindows = new Native.WeakSet<any>();
+  const processedObjects = new Native.WeakSet<any>();
 
   /**
    * NUCLEAR STEALTH: Atomic Harden
@@ -90,6 +91,9 @@ import {
   function patchUserObjects(obj: unknown, depth = 0): boolean {
     if (!obj || typeof obj !== "object" || depth > MAX_RECURSION_DEPTH)
       return false;
+
+    if (processedObjects.has(obj)) return false;
+    processedObjects.add(obj);
 
     let modified = false;
     const user = obj as XUser;

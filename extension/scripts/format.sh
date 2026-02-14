@@ -9,10 +9,17 @@ cd "$PROJECT_ROOT"
 
 # Ensure we are using the environment's tools
 echo "🎨 Formatting project files..."
-npx prettier --write \
-    "src/**/*.{ts,js}" \
-    "tests/**/*.{ts,js}" \
-    "*.{js,json,md}"
+if [ -f "node_modules/.bin/prettier" ]; then
+    ./node_modules/.bin/prettier --write \
+        "src/**/*.{ts,js}" \
+        "tests/**/*.{ts,js}" \
+        "*.{js,json,md}"
+else
+    npx prettier --write \
+        "src/**/*.{ts,js}" \
+        "tests/**/*.{ts,js}" \
+        "*.{js,json,md}"
+fi
 
 echo "🐚 Formatting shell scripts..."
 if command -v shfmt &>/dev/null; then
