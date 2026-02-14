@@ -1,4 +1,4 @@
-import { getFlagEmoji, BusCmd, log } from "./core";
+import { getFlagEmoji, BusCmd, log, normalizeHandle, BusMessage } from "./core";
 
 declare const PLOX_SERVER_URL: string;
 const PLOX_SERVER =
@@ -12,91 +12,62 @@ export const cache = new Map<
 >();
 export const pending = new Set<string>();
 
-export const performInvestigation = async (
-  handle: string,
-  tabId: number,
-  elementId: string,
-) => {
-  const cached = cache.get(handle);
+export const performInvestigation = async (handle: string, tabId: number) => {
+  const normalized = normalizeHandle(handle);
+  const cached = cache.get(normalized);
+
   if (cached) {
-    chrome.tabs.sendMessage(tabId, {
+    const msg: BusMessage = {
       action: BusCmd.UPDATE,
-      handle,
-      elementId,
+      handle: normalized,
       flag: cached.flag,
       location: cached.location,
-    });
+    };
+    chrome.tabs.sendMessage(tabId, msg);
     return;
   }
 
-  if (pending.has(handle)) {
-    return;
-  }
-  pending.add(handle);
+  if (pending.has(normalized)) return;
+  pending.add(normalized);
 
   try {
-    const url = `${PLOX_SERVER}/met?username=${encodeURIComponent(handle)}`;
-
+    const url = `${PLOX_SERVER}/met?username=${encodeURIComponent(normalized)}`;
     const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Server returned ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Server returned ${response.status}`);
 
     const data: {
-      username: string;
       processed: boolean;
       location: string | null;
-    } = (await response.json()) as {
-      username: string;
-      processed: boolean;
-      location: string | null;
-    };
+    } = await response.json();
 
     if (data.processed && data.location) {
       const flag = getFlagEmoji(data.location);
       const entry = { location: data.location, flag };
-      cache.set(handle, entry);
+      cache.set(normalized, entry);
 
       // Stealth Caching: Sync to storage for content script access
-      chrome.storage.local.set({ [`cache:${handle}`]: entry });
+      chrome.storage.local.set({ [`cache:${normalized}`]: entry });
 
-      chrome.tabs.sendMessage(tabId, {
+      const msg: BusMessage = {
         action: BusCmd.UPDATE,
-        handle,
-        elementId,
+        handle: normalized,
         flag,
         location: data.location,
-      });
+      };
+      chrome.tabs.sendMessage(tabId, msg);
     }
   } catch (err) {
-    log(`Lookup failed for ${handle}:`, err);
-    chrome.tabs.sendMessage(tabId, {
-      action: BusCmd.RETRY,
-      handle,
-    });
+    log(`Lookup failed for ${normalized}:`, undefined, err);
+    const msg: BusMessage = { action: BusCmd.RETRY, handle: normalized };
+    chrome.tabs.sendMessage(tabId, msg);
   } finally {
-    pending.delete(handle);
+    pending.delete(normalized);
   }
 };
 
-interface PloxMessage {
-  action: number;
-  handle: string;
-  elementId: string;
-}
-
-if (
-  typeof chrome !== "undefined" &&
-  chrome.runtime &&
-  chrome.runtime.onMessage
-) {
-  chrome.runtime.onMessage.addListener(
-    (request: PloxMessage, sender: chrome.runtime.MessageSender) => {
-      if (request.action !== BusCmd.PROCESS) return;
-      if (!sender.tab?.id) {
-        return;
-      }
-      performInvestigation(request.handle, sender.tab.id, request.elementId);
-    },
-  );
-}
+chrome.runtime.onMessage.addListener(
+  (request: BusMessage, sender: chrome.runtime.MessageSender) => {
+    if (request.action !== BusCmd.PROCESS || !sender.tab?.id) return;
+    performInvestigation(request.handle, sender.tab.id);
+  },
+);

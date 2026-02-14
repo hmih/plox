@@ -1,24 +1,59 @@
 // GHOST Protocol: Interceptor <-> Bridge (Private Channel)
 // Using obfuscated integer codes to blend in with generic minified traffic
 export const GhostCmd = {
-  SYNC: 201, // was 0
-  UPDATE: 202, // was 1
-  RETRY: 204, // was 2
+  SYNC: 201,
+  UPDATE: 202,
+  RETRY: 204,
 } as const;
 
 // BUS Protocol: Bridge <-> Background (Chrome Runtime)
 export const BusCmd = {
-  PROCESS: 401, // was 4
-  UPDATE: 402, // was 5
-  RETRY: 406, // was 6
+  PROCESS: 401,
+  UPDATE: 402,
+  RETRY: 406,
 } as const;
+
+export interface GhostMessage {
+  type: (typeof GhostCmd)[keyof typeof GhostCmd];
+  handle: string;
+  flag?: string;
+}
+
+export interface BusMessage {
+  action: (typeof BusCmd)[keyof typeof BusCmd];
+  handle: string;
+  flag?: string;
+  location?: string | null;
+}
 
 // Build-time definition for development mode
 declare const __DEV__: boolean;
 
-export const log = (msg: string, ...args: any[]) => {
+export const normalizeHandle = (handle: string): string =>
+  handle.trim().toLowerCase();
+
+export const GRAPHQL_TARGET_KEYS = [
+  "data",
+  "user",
+  "legacy",
+  "user_results",
+  "result",
+  "core",
+  "instructions",
+  "entries",
+  "content",
+  "itemContent",
+  "tweet_results",
+  "globalObjects",
+  "users",
+];
+
+export const MAX_RECURSION_DEPTH = 20;
+
+export const log = (msg: string, logger?: any, ...args: any[]) => {
   if (typeof __DEV__ !== "undefined" && __DEV__) {
-    console.log(`[PLOX] ${msg}`, ...args);
+    const l = logger || console;
+    l.log(`[PLOX] ${msg}`, ...args);
   }
 };
 

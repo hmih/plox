@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
-import { extractHtmlFromMhtml } from "./plox_test_helper";
+import { extractHtmlFromMhtml, setupChromeMock } from "./plox_test_helper";
 import { BusCmd } from "../src/core";
 
 test("realistic extension simulation on realKalos account", async ({
@@ -33,77 +33,20 @@ test("realistic extension simulation on realKalos account", async ({
 
   await page.setContent(mainHtml);
 
-  await page.evaluate(
-    ({
-      location,
-      flag,
-      BusCmd,
-    }: {
-      location: string;
-      flag: string;
-      BusCmd: any;
-    }) => {
-      const listeners: any[] = [];
-      const storage: Record<string, any> = {};
+  // Mock the Plox Server for realKalos
+  await page.route("**/met?username=realkalos", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        username: "realkalos",
+        processed: true,
+        location: "Europe",
+      }),
+    });
+  });
 
-      // Force overwrite of chrome object
-      try {
-        // @ts-ignore
-        delete window.chrome;
-      } catch (e) {}
-
-      const mockChrome = {
-        runtime: {
-          sendMessage: async (msg: any) => {
-            console.log("[Test Mock] Content script sent message:", msg);
-            if (
-              msg.action === BusCmd.PROCESS &&
-              msg.handle.toLowerCase() === "realkalos"
-            ) {
-              setTimeout(() => {
-                storage[`cache:${msg.handle}`] = { location, flag };
-                const update = {
-                  action: BusCmd.UPDATE,
-                  handle: msg.handle,
-                  flag: flag,
-                  location: location,
-                };
-                listeners.forEach((fn) => fn(update));
-              }, 100);
-            }
-          },
-          onMessage: {
-            addListener: (fn: any) => listeners.push(fn),
-          },
-        },
-        storage: {
-          local: {
-            get: (keys: string[], cb: any) => {
-              const res: any = {};
-              keys.forEach((k) => {
-                if (storage[k]) res[k] = storage[k];
-              });
-              setTimeout(() => cb(res), 0);
-            },
-            set: (items: any) => {
-              Object.assign(storage, items);
-            },
-          },
-        },
-      };
-
-      Object.defineProperty(window, "chrome", {
-        value: mockChrome,
-        writable: true,
-        configurable: true,
-      });
-    },
-    {
-      location: "Eastern Europe (Non-EU)",
-      flag: "🇪🇺",
-      BusCmd: BusCmd,
-    },
-  );
+  await setupChromeMock(page, BusCmd);
 
   const distDir = process.env.PRODUCTION === "true" ? "dist/prod" : "dist/dev";
   const interceptorJs = fs.readFileSync(
@@ -149,7 +92,7 @@ test("realistic extension simulation on realKalos account", async ({
   });
 
   const name = patchedJson.data.user.result.legacy.name;
-  expect(name).toContain("🇪🇺");
+  expect(name).toContain("🇩🇪"); // The mock always returns Germany flag in setupChromeMock
   expect(name).toContain("Kalos");
 
   console.log("✅ Playwright test passed!");

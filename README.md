@@ -20,7 +20,7 @@ The extension is split across three isolated execution environments to balance s
 ### 1. The Interceptor (`MAIN` world)
 *   **File:** `extension/src/interceptor.ts`
 *   **Role:** Runs in X.com's own context. Proxies `fetch` and `XMLHttpRequest`.
-*   **Stealth:** Uses a **Global Lie Map** to hook `Function.prototype.toString`. This allows proxies to recursively pass introspection checks (e.g., `fetch.toString().toString()` returns `[native code]`).
+*   **Stealth:** Uses a **Global Lie Map** to hook `Function.prototype.toString`. This allows proxies to recursively pass introspection checks (e.g., `fetch.toString().toString()` returns `[native code]`). All proxies mask their `Symbol.toStringTag` and mirror original property descriptors to pass deep integrity checks.
 *   **Response Proxying:** Wraps the `Response` object itself to trap `.json()` calls, modifying data in-place without cloning (reducing memory footprint and latency).
 *   **Patching:** Recursively traverses JSON responses and appends location-based flag emojis to user `name` fields.
 
@@ -103,10 +103,11 @@ Develop a browser extension ("System Font Compatibility Layer") that invisibly i
     3.  If no, calls the real native `toString`.
 *   **The Ouroboros:** The Global Hook registers *itself* in the Lie Map, so inspecting the inspector reveals `[native code]`.
 *   **Constructor Masking:** The `XMLHttpRequest` proxy traps the `constructor` property on instances, returning the proxy wrapper instead of the native class, causing `(new XMLHttpRequest()).constructor === XMLHttpRequest` to pass.
+*   **Tag & Descriptor Integrity:** All proxies (fetch, XHR, Response) trap `Symbol.toStringTag` to return their respective native names (e.g., `"XMLHttpRequest"`, `"Response"`). When applying proxies to `window`, the original property descriptors (enumerable, configurable, writable) are mirrored exactly using `Object.defineProperty`.
 
 ### 3. Data Layer Logic
 *   **Target:** X.com GraphQL responses.
-*   **Traversal:** Recursively scan JSON objects for keys: `data`, `user`, `legacy`, `user_results`, `result`, `core`, `instructions`, `entries`, `itemContent`, `tweet_results`.
+*   **Traversal:** Recursively scan JSON objects (max depth 20) for keys: `data`, `user`, `legacy`, `user_results`, `result`, `core`, `instructions`, `entries`, `itemContent`, `tweet_results`, `globalObjects`, `users`.
 *   **Modification:** Identify objects with `screen_name` and `name`. If a location match is found in the cache, append the flag emoji to `name` string.
 *   **Protocol:** Uses dual-channel **Opaque Integers**:
     *   **GHOST (0-2):** Interceptor <-> Bridge.
